@@ -1,0 +1,49 @@
+# Operating System & File System Artifacts
+.DS_Store
+Thumbs.db
+*.tmp
+*~
+
+# IDE & Editor Environments
+.vscode/
+*.code-workspace
+.history/
+
+# Antigravity & Tooling Configurations
+.antigravity/
+*.antigravity
+antigravity/
+
+# Raw, Demultiplexed, and Intermediate Sequencing Data
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+miseq_data/
+raw_runs/
+
+# QIIME 2 Artifacts & Visualizations
+*.qza
+*.qzv
+01_imported/
+02_trimmed/
+03_denoised_*/
+04_merged_*/
+05_taxonomy_*/
+06_phylo_*/
+07_diversity_*/
+09_qc_reports/
+
+# Functional Metagenomics (PICRUSt2 Outputs & Intermediates)
+picrust2_out_*/
+*.jplace
+
+# Large High-Throughput Matrix Exports
+*.biom
+*.ctab
+
+# Python / Conda Runtime Caches
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
