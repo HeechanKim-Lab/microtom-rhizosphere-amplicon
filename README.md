@@ -1,4 +1,4 @@
-# Micro-Tom Rhizosphere Amplicon Pipeline (16S # 04_MicroTom_P_Rhizosphere_Amplicon_Analysis ITS2)
+# Micro-Tom Rhizosphere Amplicon Pipeline (16S & ITS2)
 Dry-lab computational log and pipeline for profiling bacterial (16S rRNA) and fungal (ITS2) rhizosphere communities of Parent (P) generation *Solanum lycopersicum* cv. 'Micro-Tom' exposed to distinct regional soil inocula.
 
 ---
