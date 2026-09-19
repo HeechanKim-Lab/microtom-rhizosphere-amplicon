@@ -23,7 +23,7 @@ QIIME 2 distributions rely heavily on compiled C/C++, Fortran, and Cython binari
 ### A. Casava 1.8 Semantic Format Requirements
 QIIME 2 enforces strict semantic typing and format validation. The input format `CasavaOneEightSingleLanePerSampleDirFmt` requires sequencing files to follow an immutable regular expression:
 
-$$\text{SampleID}\_\text{SampleNumber}\_\text{L001}\_\text{R}[1|2]\_001\text{.fastq.gz}$$
+$$\text{SampleID}\_{\text{SampleNumber}}\_{\text{L001}}\_{\text{R}[1|2]}\_{001}\text{.fastq.gz}$$
 
 * **Namespace Collisions:** The presence of multiple FastQ pairs bearing identical sample identifiers (e.g., re-sequenced samples across different flowcell lanes or library preparations) breaks the one-sample-per-file-pair invariant and causes directory validation to abort.
 * **Deterministic Pairing:** Enforcing standard Casava formatting ensures that downstream demultiplexing artifacts (`SampleData[PairedEndSequencesWithQuality]`) correctly pair forward and reverse reads without index file discrepancies.
