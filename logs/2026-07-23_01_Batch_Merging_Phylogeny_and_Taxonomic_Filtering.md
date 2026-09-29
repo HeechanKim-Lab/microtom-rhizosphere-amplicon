@@ -80,36 +80,36 @@ During the harvest of cohort `GJ3`, specific samples were labeled with terminal 
 
 Initial consolidation across the 6 bacterial batches generated the master frequency table `table_16S_merged.qzv`, establishing sequencing coverage across the P generation rhizosphere cohort.
 
-![Merged Feature Table Summary](../assets/006_table_16S_merged.qzv.png)[cite: 6]
+![Merged Feature Table Summary](../assets/006_table_16S_merged.qzv.png)
 
 ### Summary Statistics
-* **Sample Count:** 134 total sequencing libraries[cite: 6].
-* **ASV Richness:** 32,500 distinct bacterial amplicon sequence variants[cite: 6].
-* **Total Read Volume:** 9,773,691 high-confidence non-chimeric reads[cite: 6].
+* **Sample Count:** 134 total sequencing libraries.
+* **ASV Richness:** 32,500 distinct bacterial amplicon sequence variants.
+* **Total Read Volume:** 9,773,691 high-confidence non-chimeric reads.
 
 ---
 
 ### Library Depth Distribution
 
-![Sample Sequencing Depth Frequency Histogram](../assets/007_table_16S_merged.qzv.png)[cite: 7]
+![Sample Sequencing Depth Frequency Histogram](../assets/007_table_16S_merged.qzv.png)
 
-* **Coverage Uniformity:** Library sizes exhibit a unimodal distribution centered tightly around the mean ($72,938$ reads) and median ($75,637$ reads)[cite: 7].
-* **Interquartile Range:** Spans from $58,091.2$ reads (25th percentile) to $83,780.5$ reads (75th percentile)[cite: 7].
-* **Minimum Retained Depth:** The lowest library achieved $27,915$ reads[cite: 7], establishing that subsequent rarefaction thresholds can target $> 25,000$ reads per sample without dropping experimental replicates.
-* **Maximum Retained Depth:** $160,800$ reads[cite: 7].
+* **Coverage Uniformity:** Library sizes exhibit a unimodal distribution centered tightly around the mean ($72,938$ reads) and median ($75,637$ reads).
+* **Interquartile Range:** Spans from $58,091.2$ reads (25th percentile) to $83,780.5$ reads (75th percentile).
+* **Minimum Retained Depth:** The lowest library achieved $27,915$ reads, establishing that subsequent rarefaction thresholds can target $> 25,000$ reads per sample without dropping experimental replicates.
+* **Maximum Retained Depth:** $160,800$ reads.
 
 ---
 
 ### Feature Distribution & Sparsity
 
-![Frequency per Feature Distribution](../assets/008_table_16S_merged.qzv.png)[cite: 8]
+![Frequency per Feature Distribution](../assets/008_table_16S_merged.qzv.png)
 
-* **Long-Tail Sparsity:** In line with soil microbiome distributions, feature frequencies follow a power-law curve[cite: 8].
+* **Long-Tail Sparsity:** In line with soil microbiome distributions, feature frequencies follow a power-law curve.
 * **Low-Frequency Dominance:** 
-  * 1st Quartile frequency = 2 counts[cite: 8].
-  * Median frequency = 8 counts across all 134 samples[cite: 8].
-  * 3rd Quartile frequency = 47 counts[cite: 8].
-* **Dominant Core Taxa:** Mean feature frequency reaches $300.7$ counts[cite: 8], driven by an elite fraction of rhizosphere-adapted ASVs reaching up to $166,731$ counts[cite: 8]. This distribution emphasizes the need for compositional zero handling and variance-stabilizing normalization downstream.
+  * 1st Quartile frequency = 2 counts.
+  * Median frequency = 8 counts across all 134 samples.
+  * 3rd Quartile frequency = 47 counts.
+* **Dominant Core Taxa:** Mean feature frequency reaches $300.7$ counts, driven by an elite fraction of rhizosphere-adapted ASVs reaching up to $166,731$ counts. This distribution emphasizes the need for compositional zero handling and variance-stabilizing normalization downstream.
 
 ---
 

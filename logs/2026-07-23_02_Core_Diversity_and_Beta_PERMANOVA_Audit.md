@@ -13,7 +13,7 @@
 Amplicon count matrices are compositional and subject to library size artifacts driven by non-biological factors (e.g., differential PCR amplification efficiencies, fluorophore degradation, flow cell clustering variations).
 * **Distance Matrix Sensitivity:** Beta-diversity distance metrics—particularly Jaccard (binary presence/absence) and unweighted UniFrac—are sensitive to sequencing depth. Artifactually high library depths uncover deeper rare-biosphere singletons, which can artificially inflate ecological distance between identical communities.
 * **16S Sampling Depth ($27,000$ reads):** 
-  Based on post-merging diagnostic distributions where the absolute minimum library depth reached $27,915$ reads (`table_16S_merged.qzv`), a rarefaction threshold of $27,000$ reads samples the community near the empirical lower bound. This retains **100% of biological replicates** while eliminating library size variation as a confounding factor.
+  Based on post-merging diagnostic distributions where the absolute minimum library depth reached $27,915$ reads (`table_16S_merged.qzv`), a rarefaction threshold of $27,000$ reads samples the community near the empirical lower bound. This retains **100% of biological replicates** ($N=134$) while eliminating library size variation as a confounding factor.
 * **ITS2 Sampling Depth ($8,600$ reads):** 
   Fungal libraries exhibit wider library size variance and lower baseline amplicon yields than bacterial assays. Setting depth to $8,600$ reads captures the inflection plateau of fungal species saturation curves across all groups while preventing the exclusion of lower-yield rhizosphere samples.
 
@@ -49,14 +49,14 @@ Pairwise Bray-Curtis distance distributions were evaluated to determine whether 
 ![Distances to GJ_Treatment_Extra across Treatment Groups](../assets/013_PERMANOVA_treatment_full.qzv(Extra).png)
 
 ### Key Diagnostic Observations
-1. **Batch Affinity Profile:** In the pairwise batch distance matrix, distances from `GJ3_Extra` to unrelated batches (`B1`–`B4`, `M1`–`M4`, `jM2`–`jM3`) are uniformly high, with median Bray-Curtis distances exceeding $0.75\text{--}0.85$.
-2. **Bimodal Intra-Set Divergence:** Within the synchronous `GJ` harvest cohort, `GJ3_Extra` exhibits low pairwise distances exclusively to `J4` (median $\sim 0.51$, with samples reaching down to $0.32$) and `jM4` (median $\sim 0.50$, reaching down to $0.31$).
-3. **Cross-Treatment Infiltration:** When examining distance to `GJ_Treatment_Extra`, distances to `GB` groups are consistently elevated ($\sim 0.80$), while distances to both `GJ_Control` and `GJ_Treatment` exhibit a broad, bimodal distribution with lower whiskers reaching $\sim 0.32$.
+1. **Batch Affinity Profile (Figure 010):** In the pairwise batch distance matrix, distances from `GJ3_Extra` ($N=7$) to unrelated batches (`B1`–`B4`, `M1`–`M4`, `jM2`–`jM3`, each $n=77$) are uniformly high, with median Bray-Curtis distances exceeding $0.75\text{--}0.85$.
+2. **Bimodal Intra-Set Divergence:** Within the synchronous `GJ` harvest cohort, `GJ3_Extra` exhibits low pairwise distances exclusively to `J4` (median $\sim 0.51$, $n=42$, with samples reaching down to $0.32$) and `jM4` (median $\sim 0.50$, $n=77$, with samples reaching down to $0.31$).
+3. **Cross-Treatment Infiltration (Figure 013):** When examining distance to `GJ_Treatment_Extra`, distances to `GB` groups are consistently elevated ($\sim 0.80$, $n=231$), while distances to both `GJ_Control` ($n=231$) and `GJ_Treatment` ($n=196$) exhibit a broad, bimodal distribution with lower whiskers reaching $\sim 0.32$.
 
 ### Diagnostic Verdict
 These distribution patterns confirm that the $x/y$ samples do not represent novel environmental phenotypes or systemic contamination. Instead, they are an unindexed mixture of authentic **GJ Treatment** and **GJ Control (MES)** samples where replicate IDs were swapped during sampling. 
 
-Retaining these mislabeled samples within primary experimental comparisons would blur group centroids, inflate within-group variance ($SS_W$), and reduce statistical power. Stratifying the dataset into `Standard` (strict, verified replicates only) vs. `Full` (complete collection for sensitivity auditing) addresses this classification ambiguity.
+Retaining these mislabeled samples within primary experimental comparisons would blur group centroids, inflate within-group variance ($SS_W$), and reduce statistical power. Stratifying the dataset into `Standard` ($N = 127$; strict, verified replicates only) vs. `Full` ($N = 134$; complete collection for sensitivity auditing) isolates this classification ambiguity.
 
 ---
 
@@ -70,9 +70,9 @@ To determine the magnitude of run-to-run variation across the 6 independent expe
 
 ### Comparative Analysis
 * **Intra-Batch Baseline:** Within-batch variation (`B1` to `B1`, $n=55$) displays a tight median distance of $0.47$, establishing the technical baseline for biological replicates within a single sequencing run.
-* **Biological Condition Dominance:** Between-batch distances to other Gijang B treated sets (`B3`, `B4`) remain significantly lower (medians $0.63$ and $0.68$) than distances to control or alternative soil treatments.
-* **Environmental Divergence:** Distances from `B1` to non-host controls (`M1`–`M4`, `jM2`–`jM4`) and Gyeongju treatments (`J2`–`J4`) plateau between $0.75$ and $0.85$.
-* **Standard Dataset Cleansing:** Removing `GJ3_Extra` removes anomalous inter-batch variance outliers from the distribution while preserving the underlying biological gradient. The remaining batch-level shifts confirm that downstream differential abundance (ANCOM-BC2) and phenotypic regression must include `Sequencing_Batch` as a blocking covariate or random effect.
+* **Biological Condition Dominance:** Between-batch distances to other Gijang B treated sets (`B3`, `B4`, $n=121$) remain significantly lower (medians $0.63$ and $0.68$) than distances to control or alternative soil treatments.
+* **Environmental Divergence:** Distances from `B1` to uninoculated peat controls (`M1`–`M4`, `jM2`–`jM4`, $n=121$) and Gyeongju treatments (`J2`–`J4`) plateau between $0.75$ and $0.85$.
+* **Standard Dataset Cleansing:** Removing `GJ3_Extra` removes anomalous inter-batch variance outliers from the distribution while preserving the underlying biological gradient. The remaining batch-level shifts confirm that downstream differential abundance and phenotypic regression must incorporate `Sequencing_Batch` as a blocking covariate or random effect.
 
 ---
 
@@ -86,9 +86,9 @@ Evaluating distances relative to `GB_Control` confirms the stability of core tre
 
 ### Contrast Insights
 * **Within-Control Baseline:** Intra-group distances among `GB_Control` replicates ($n=528$) center at median $0.71$, reflecting natural baseline variation within peat plug microbial communities under MES buffer irrigation.
-* **Soil Inoculation Impact:** Exposure to `GB_Treatment` shifts communities into a distinct compositional state (median distance $\sim 0.79$, $p < 0.001$).
-* **Cross-Regional Separation:** Gyeongju treatment (`GJ_Treatment`) maintains the greatest ecological divergence from `GB_Control` (median distance $> 0.80$).
-* **Cohort Refinement:** In the Standard dataset, removing `GJ_Treatment_Extra` eliminates overlapping distance points between $0.45\text{--}0.60$, yielding tighter quartile boundaries and cleaner separation of treatment centroids.
+* **Soil Inoculation Impact:** Exposure to `GB_Treatment` shifts communities into a distinct compositional state (median distance $\sim 0.79$, $n=1089$, $p < 0.001$).
+* **Cross-Regional Separation:** Gyeongju treatment (`GJ_Treatment`, $n=924$) maintains the greatest ecological divergence from `GB_Control` (median distance $> 0.80$).
+* **Identification of Latent Set 4 Outliers:** In the Standard dataset (Figure 014), removing `GJ_Treatment_Extra` eliminates the ambiguous extra column. However, `GJ_Treatment` ($n=924$) continues to exhibit low-distance outlier points extending down to $0.45\text{--}0.60$ relative to `GB_Control`. This persistent bimodal artifact provides the direct empirical evidence that mislabeling was not restricted to the extra tubes, but persisted within the standard tubes of Set 4 (`J4`/`jM4`).
 
 ---
 
@@ -96,7 +96,7 @@ Evaluating distances relative to `GB_Control` confirms the stability of core tre
 
 | Assay | Cohort | Sampling Depth | Primary Distance Matrices | PERMANOVA Covariates Evaluated | Verified Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **16S** | Full | 27,000 | Weighted/Unweighted UniFrac, Bray-Curtis, Jaccard | `Treatment_Group`, `Sequencing_Batch` | Completed (Sensitivity Baseline) |
-| **16S** | Standard | 27,000 | Weighted/Unweighted UniFrac, Bray-Curtis, Jaccard | `Treatment_Group`, `Sequencing_Batch` | Validated (Downstream Core) |
-| **ITS2** | Full | 8,600 | Bray-Curtis, Jaccard | `Treatment_Group`, `Sequencing_Batch` | Completed (Sensitivity Baseline) |
-| **ITS2** | Standard | 8,600 | Bray-Curtis, Jaccard | `Treatment_Group`, `Sequencing_Batch` | Validated (Downstream Core) |
+| **16S** | Full ($N=134$) | 27,000 | Weighted/Unweighted UniFrac, Bray-Curtis, Jaccard | `Treatment_Group`, `Sequencing_Batch` | Completed (Sensitivity Baseline) |
+| **16S** | Standard ($N=127$) | 27,000 | Weighted/Unweighted UniFrac, Bray-Curtis, Jaccard | `Treatment_Group`, `Sequencing_Batch` | Validated (Curated Baseline) |
+| **ITS2** | Full ($N=134$) | 8,600 | Bray-Curtis, Jaccard | `Treatment_Group`, `Sequencing_Batch` | Completed (Sensitivity Baseline) |
+| **ITS2** | Standard ($N=127$) | 8,600 | Bray-Curtis, Jaccard | `Treatment_Group`, `Sequencing_Batch` | Validated (Curated Baseline) |
