@@ -73,6 +73,36 @@ ITS2, ITS4:       TCCTCCGCTTATTGATATGC  (+ N spacer)
 
 Steps 1–6 were run in QIIME 2 2024.10; steps 7–10 in R 4.6.1 unless stated. Details and commands are in the logs.
 
+```text
+    Raw FASTQ: Bacteria_<batch>/ (16S) and Fungi_<batch>/ (ITS2)
+            batches GB1, GB2, GB3, GJ1, GJ2 (GJ3 removed)
+                                  │
+        ┌─────────────────────────┴─────────────────────────┐
+        ▼                                                   ▼
+ [16S rRNA V3–V4]                                   [ITS2]
+        │                                                   │
+ 1. Import per batch (Casava 1.8)                   1. Import per batch (Casava 1.8)
+        │                                                   │
+ 2. cutadapt: 341F/805R + N spacers                 2. cutadapt: ITS3/ITS4 + N spacers
+        │                                                   │
+ 3. DADA2 per batch, truncation 260/200             3. DADA2 per batch, no truncation
+        │                                                   │
+ 4. Merge batches; SILVA 138 classifier;            4. Merge batches; UNITE v10
+    remove mitochondria, chloroplasts                  classifier; keep k__Fungi
+    and other non-target taxa                               │
+        │                                                   │
+ 5. MAFFT + FastTree, midpoint-rooted               5. No tree
+        │                                                   │
+ 6. Core diversity at 27,000 reads                  6. Core diversity at 8,600 reads
+        │
+        ▼
+ R, final 16S set (N = 110), QIIME 2 artifacts read with qiime2R
+ 7.  Alpha and beta diversity: PCoA, NMDS, PERMANOVA, betadisper
+ 8.  Differential abundance of ASVs: LinDA, each treatment vs its control
+ 9.  PICRUSt2 on the unrarefied table from step 4 → MetaCyc pathways → LinDA
+ 10. Taxonomic composition, phylum to genus
+```
+
 1. **Import** of each batch separately (Casava 1.8 format).
 2. **Primer removal** with cutadapt (`qiime cutadapt trim-paired`): primers given as 5′ adapters (this also removes the spacers), error rate 0.15, IUPAC wildcards allowed, read pairs without primers discarded.
 3. **Denoising** with DADA2 for each batch separately. 16S: truncation at 260 (forward) and 200 (reverse), maximum expected errors 2.0 / 3.0. ITS2: no truncation, maximum expected errors 2.0 / 3.0.
@@ -117,12 +147,7 @@ Steps 1–6 were run in QIIME 2 2024.10; steps 7–10 in R 4.6.1 unless stated. 
 * **Unbalanced and partly confounded design.** The GJ groups have 22 samples from two batches; the GB groups have 33 from three. Each batch contains one treated and one control set, and the GB and GJ experiments were grown at different times. GB vs GJ comparisons therefore mix soil origin with experiment (time), and set-to-set differences are visible in several analyses (2026-07-23_02, 2026-08-10_01, 2026-08-24_01). No model includes a set or batch term.
 * **Metadata column name.** The column `Sequencing_Batch` holds the set code (`B1`, `M1`, …), not the batch name (`GB1`, …).
 * **LinDA input.** LinDA was run on the rarefied table (Section 4, step 8).
-* **Dispersion.** Group dispersions differ, which PERMANOVA does not separate from location effects.
-* **PICRUSt2.** Several top pathways are named after archaeal, yeast or animal pathways, so the pathway results need checking before biological interpretation.
 * **Exploratory logs.** Logs 2026-07-24_02 and 2026-07-25_01 use PCoA-derived labels. They are kept as a record and are not used for the final results.
-* **Figure 088** is identical to Figure 045, the six-batch (N = 134) exclusive-ASV table.
-* **Figure values.** Taxonomic percentages in logs 2026-07-25_01 and 2026-08-18_01 were measured from the bar heights in the figures (about ±0.2 percentage points), because the scripts do not export the group means.
-* **ITS2.** The ITS2 results come from the six-batch set only (2026-07-24_01). The five-batch pipeline computes ITS2 diversity metrics (2026-07-29_01), but they were not analysed further. The number of ITS2 samples retained at 8,600 reads is not recorded.
 
 ---
 
