@@ -1,234 +1,188 @@
-# Micro-Tom Rhizosphere Amplicon Pipeline (16S & ITS2)
-Dry-lab computational log and pipeline for profiling bacterial (16S rRNA) and fungal (ITS2) rhizosphere communities of Parent (P) generation *Solanum lycopersicum* cv. 'Micro-Tom' exposed to distinct regional soil inocula.
+# Micro-Tom Rhizosphere Amplicon Sequencing (16S and ITS2)
+
+Bacterial (16S rRNA, V3–V4) and fungal (ITS2) amplicon sequencing of rhizosphere soil from the parent (P) generation of tomato (*Solanum lycopersicum* cv. Micro-Tom). Plants were grown in peat plugs treated with a soil suspension from one of two sites, Gijang B (GB) or Gyeongju (GJ), or with buffer only. The repository contains the QIIME 2 and R code, dated analysis logs and figures. The final analysis uses 110 samples from five sequencing batches.
 
 ---
 
-## 1. Project Background & Biological Context
+## 1. Overview
 
-This project evaluates the influence of distinct regional soil environments on plant phenotypes across generations, tracking potential microbiome-mediated and transgenerational memory effects. 
+**Question.** Does treatment with soil suspensions from two regions change the bacterial and fungal communities of the Micro-Tom rhizosphere, and how do the communities from the two soils differ?
 
-* **Gyeongju (GJ) Soil:** Associated with increased vegetative biomass (elevated Shoot Length [SL], Root Length [RL], Fresh Weight [FW], and Dry Weight [DW]).
-* **Gijang B (GB) Soil:** Associated with accelerated flowering and fruit ripening kinetics.
+**Context.** This dataset is the P generation of a multi-generation experiment:
+
+* P: soil treatment (GB, GJ or control) — this dataset;
+* F1 and F2: treatment continued;
+* F3: no treatment, to test for effects carried over from earlier generations.
+
+In earlier phenotyping (not part of this repository), GJ soil was associated with larger plants (shoot length, root length, fresh and dry weight) and GB soil with earlier flowering and fruit ripening.
+
+---
+
+## 2. Experimental design
+
+* **Plant:** *Solanum lycopersicum* cv. Micro-Tom, grown in peat plugs.
+* **Treatments:** control, peat plug + MES buffer; GB, peat plug + MES buffer + GB soil suspension; GJ, peat plug + MES buffer + GJ soil suspension.
+* **Two experiments:** the GB and GJ experiments were grown at different times, each with its own control group.
+* **Sample:** rhizosphere soil (soil tightly attached to the roots), collected after about 96 days.
+
+Each sequencing batch contains one treated set and one control set of 11 plants each. Sample codes: `B` = GB-treated, `M` = GB control, `J` = GJ-treated, `jM` = GJ control, followed by the set number.
+
+| Batch | Treated set | Control set | Libraries per assay | Used in final analysis |
+| :--- | :--- | :--- | ---: | :--- |
+| GB1 | `B1` (11) | `M1` (11) | 22 | yes |
+| GB2 | `B3` (11) | `M3` (11) | 22 | yes |
+| GB3 | `B4` (11) | `M4` (11) | 22 | yes |
+| GJ1 | `J2` (11) | `jM2` (11) | 22 | yes |
+| GJ2 | `J3` (11) | `jM3` (11) | 22 | yes |
+| GJ3 | `J4` (6) | `jM4` (11) | 24, including 7 samples with `x`/`y` codes | no (removed; see below) |
+
+Labels in batch GJ3 were uncertain: seven tubes carried `x`/`y` codes that could not be assigned to a group, and some `J4`/`jM4` samples clustered with the opposite group. An exploratory reassignment of these labels from PCoA positions was circular, so the whole batch was removed (logs 2026-07-24_02 and 2026-07-29_01).
+
+**Sample sets used in the logs**
+
+| Set | Batches | N | `GB_Control` / `GB_Treatment` / `GJ_Control` / `GJ_Treatment` | Labels | Logs |
+| :--- | :--- | ---: | :--- | :--- | :--- |
+| Full | six | 134 | 33 / 33 / 33 / 28, plus 7 x/y samples | original | 2026-07-23_02, 2026-07-24_01 |
+| Standard | six | 127 | 33 / 33 / 33 / 28 | original | 2026-07-23_02, 2026-07-24_01 |
+| Reassigned (exploratory) | six | 134 | 33 / 33 / 34 / 34 | 17 GJ3 labels changed from PCoA | 2026-07-24_02, 2026-07-25_01 |
+| **Final** | five (no GJ3) | **110** | 33 / 33 / 22 / 22 | original | 2026-07-29_01 to 2026-08-24_01 |
+
+The final set uses the original labels in `metadata_P_generation.tsv`. None of its samples had their labels changed, because all reassigned samples were in GJ3.
+
+---
+
+## 3. Data
+
+* **Sequencing:** Illumina MiSeq, 2 × 300 bp paired-end, National Instrumentation Center for Environmental Management (NICEM).
+* **Primers:** each construct has the Illumina adapter overhang, a 0–3 nt N spacer and the locus-specific primer.
 
 ```text
-Multi-Generation Experimental Schema:
-P Generation  : Soil Inoculation (GJ, GB, or Control) ──▶ [ CURRENT DATASET: P Rhizosphere (N=110) ]
-      │
-F1 Generation : Continuous Treatment (GJ, GB, or Control)
-      │
-F2 Generation : Continuous Treatment (GJ, GB, or Control)
-      │
-F3 Generation : Washout / No Treatment (Evaluation of inherited phenotypic memory)
+16S V3–V4, 341F:  TCGTCGGCAGCGTCAGATGTGTATAAGAGACAG [0-3 N] CCTACGGGNGGCWGCAG
+16S V3–V4, 805R:  GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAG [0-3 N] GACTACHVGGGTATCTAATCC
+ITS2, ITS3:       GCATCGATGAAGAACGCAGC  (+ N spacer)
+ITS2, ITS4:       TCCTCCGCTTATTGATATGC  (+ N spacer)
 ```
 
----
-
-## 2. Experimental Setup & Rhizosphere Sampling
-
-* **Host Plant:** *Solanum lycopersicum* cv. 'Micro-Tom'
-* **Base Substrate:** Peat plug
-* **Treatment Regimen:**
-  * **Control (CTRL):** Peat plug + MES buffer
-  * **Gyeongju (GJ):** Peat plug + MES buffer + GJ soil suspension
-  * **Gijang B (GB):** Peat plug + MES buffer + GB soil suspension
-* **Sampled Compartment:** Rhizosphere soil (tightly root-adherent soil fraction) after ~96 days of cultivation.
-* **Curated Sample Size:** $N = 110$ biological replicates across 5 validated sequencing batches (GB: $33\text{ Ctrl} + 33\text{ Treat}$; GJ: $22\text{ Ctrl} + 22\text{ Treat}$).
+* **File names:** `[B|F]_[group code][set]-[replicate]_S[sample number]_L001_R[1|2]_001.fastq.gz`, for example `B_jM3-8_S96_L001_R1_001.fastq.gz`. `B_` = 16S, `F_` = ITS2. The seven uncertain GJ3 samples have codes ending in `x` or `y` (for example `B_J2x`).
+* **Re-sequenced libraries:** two 16S libraries (`B_J3-4`, `B_M4-1`) had more than one FASTQ pair; the runs were concatenated before import (2026-07-22_01).
+* Raw reads, QIIME 2 artifacts and metadata files are not included in the repository.
 
 ---
 
-## 3. Sequencing Metadata & Sample Architecture
+## 4. Methods
 
-* **Sequencing Platform:** Illumina MiSeq (National Instrumentation Center for Environmental Management, NICEM)
-* **Run Configuration:** Paired-End (PE), $2 \times 300$ bp
-* **Sample Source:** Rhizosphere soil collected from **Parent (P) generation** *Solanum lycopersicum* cv. 'Micro-Tom'.
+Steps 1–6 were run in QIIME 2 2024.10; steps 7–10 in R 4.6.1 unless stated. Details and commands are in the logs.
 
-### Amplicon Targets & Primer Constructs
-
-The library uses staggered heterogeneity spacers (0–3 bp 'N') inserted between the Illumina adapter overhang and the locus-specific primer to preserve base-calling diversity on the MiSeq flow cell.
-
-#### 1. Bacterial 16S rRNA (V3–V4 Region)
-* **Forward Primer Construct (341F):**  
-  `5'- TCGTCGGCAGCGTCAGATGTGTATAAGAGACAG [0-3N] CCTACGGGNGGCWGCAG -3'`
-  * Overhang: `TCGTCGGCAGCGTCAGATGTGTATAAGAGACAG`
-  * Spacers: `""`, `N`, `NN`, `NNN`
-  * Specific Primer: `CCTACGGGNGGCWGCAG`
-* **Reverse Primer Construct (805R):**  
-  `5'- GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAG [0-3N] GACTACHVGGGTATCTAATCC -3'`
-  * Overhang: `GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAG`
-  * Spacers: `""`, `N`, `NN`, `NNN`
-  * Specific Primer: `GACTACHVGGGTATCTAATCC`
-
-#### 2. Fungal ITS (ITS2 Region)
-* **Forward Primer (ITS3):** `5'- GCATCGATGAAGAACGCAGC -3'` (+ N-spacers)
-* **Reverse Primer (ITS4):** `5'- TCCTCCGCTTATTGATATGC -3'` (+ N-spacers)
+1. **Import** of each batch separately (Casava 1.8 format).
+2. **Primer removal** with cutadapt (`qiime cutadapt trim-paired`): primers given as 5′ adapters (this also removes the spacers), error rate 0.15, IUPAC wildcards allowed, read pairs without primers discarded.
+3. **Denoising** with DADA2 for each batch separately. 16S: truncation at 260 (forward) and 200 (reverse), maximum expected errors 2.0 / 3.0. ITS2: no truncation, maximum expected errors 2.0 / 3.0.
+4. **Merging** of the batch tables, **taxonomy** with naive Bayes classifiers (16S: SILVA 138, 99%; ITS2: UNITE v10, 99%) and **filtering**. 16S: features assigned to mitochondria, chloroplast, Archaea, Eukaryota, Cyanobacteria, Rickettsiales, Rickettsiellales or Unassigned were removed. ITS2: only `k__Fungi` features were kept. For the final five-batch tables, the taxonomy from the six-batch classification was reused (`pipeline/run_pipeline.sh` instead re-runs the classifiers on the five-batch sequences).
+5. **16S tree** with MAFFT and FastTree, midpoint-rooted (`align-to-tree-mafft-fasttree`). No ITS2 tree.
+6. **Rarefaction and core diversity metrics:** 27,000 reads per sample (16S) and 8,600 (ITS2).
+7. **Alpha and beta diversity:** observed features, Shannon, Gini–Simpson and Faith's PD; Kruskal–Wallis tests with FDR-adjusted pairwise Wilcoxon tests. PCoA (`cmdscale`) and NMDS (`vegan::metaMDS`, k = 2). PERMANOVA (`vegan::adonis2`, `~ Treatment_Group`, 999 permutations, `set.seed(42)`) and dispersion tests (`betadisper`, `permutest`).
+8. **Differential abundance of ASVs** with LinDA (`MicrobiomeStat::linda`) on the rarefied table, `~ Treatment_Group`, separately for `GB_Treatment` vs `GB_Control` and `GJ_Treatment` vs `GJ_Control`. ASVs in fewer than 10% of samples were removed (`prev.filter = 0.10`, `mean.abund.filter = 0.0001`). Significance: FDR < 0.05 and |log2FC| ≥ 1. The model has no batch or set term.
+9. **Functional prediction** with PICRUSt2 from the unrarefied, taxonomy-filtered 16S table (27,767 ASVs): EPA-ng placement, castor maximum-parsimony prediction, NSTI cut-off 2.0 (171 ASVs excluded), MetaCyc pathways. Pathways were compared with LinDA (`~ Treatment_Group`, `prev.filter = 0.1`, `zero.handling = "pseudo-count"`). `ggpicrust2` was used only to add pathway names.
+10. **Taxonomic composition:** mean relative abundance per group from phylum to genus (rarefied table).
 
 ---
 
-### Filename Schema & Sample Demultiplexing
+## 5. Key results (final set, N = 110, 16S)
 
-Raw sequencing files follow standard Illumina Casava naming conventions:
+**Alpha diversity.** Treated rhizospheres had higher alpha diversity than controls (Kruskal–Wallis p < 10⁻¹⁵ for all four metrics). Median observed features were about 985 (`GB_Control`) and 900 (`GJ_Control`), compared with about 1,690 (`GB_Treatment`) and 1,340 (`GJ_Treatment`).
 
-```text
-[Domain]_[Treatment][Batch]-[Replicate]_S[SampleNo]_L001_R[1|2]_001.fastq.gz
+**Beta diversity (PERMANOVA, `~ Treatment_Group`, all p = 0.001).**
+
+| Distance | Four groups, R² | Treated groups only, R² |
+| :--- | ---: | ---: |
+| Bray–Curtis | 0.342 | 0.290 |
+| Weighted UniFrac | 0.303 | 0.196 |
+| Unweighted UniFrac | 0.314 | 0.165 |
+| Jaccard | 0.263 | 0.195 |
+
+* Dispersion also differed between groups (betadisper p ≤ 0.002 in all eight tests), so these R² values include differences in spread as well as in group centres.
+* The two control groups differed in composition (six-batch standard set: R² 0.08–0.11, p = 0.001). Each treatment was therefore compared with its own control.
+
+**Differential abundance (LinDA).** In both contrasts, many more ASVs were enriched in the treated group than in the control. Most of the strongest enriched ASVs were absent or rare in the controls (for example *Acidibacter*, *Chryseolinea* and *Candidatus* Adlerbacteria in GB; WD2101_soil_group, Blastocatellaceae and *Porphyrobacter* in GJ).
+
+**Taxonomic composition.** Both treated groups had less Firmicutes and more Acidobacteriota and Chloroflexi than their controls. In most plots from class to genus level, the most abundant taxa made up a smaller share of reads in treated samples.
+
+**PICRUSt2.** Seven predicted MetaCyc pathways were among the 20 most significant in both contrasts, all higher in the treated groups (for example the 3-hydroxypropanoate cycle and glyoxylate assimilation). These are predictions from 16S data, not measured functions.
+
+**ITS2** (six-batch full set only). Treated groups had more fungal ASVs than controls (Kruskal–Wallis p < 2 × 10⁻¹⁶). PERMANOVA R² was 0.258 (Bray–Curtis) and 0.187 (Jaccard). GB and GJ samples, including the two control groups, separated along PCoA 1, so this axis reflects the experiment as well as the soil.
+
+---
+
+## 6. Limitations and open points
+
+* **Unbalanced and partly confounded design.** The GJ groups have 22 samples from two batches; the GB groups have 33 from three. Each batch contains one treated and one control set, and the GB and GJ experiments were grown at different times. GB vs GJ comparisons therefore mix soil origin with experiment (time), and set-to-set differences are visible in several analyses (2026-07-23_02, 2026-08-10_01, 2026-08-24_01). No model includes a set or batch term.
+* **Metadata column name.** The column `Sequencing_Batch` holds the set code (`B1`, `M1`, …), not the batch name (`GB1`, …).
+* **LinDA input.** LinDA was run on the rarefied table (Section 4, step 8).
+* **Dispersion.** Group dispersions differ, which PERMANOVA does not separate from location effects.
+* **PICRUSt2.** Several top pathways are named after archaeal, yeast or animal pathways, so the pathway results need checking before biological interpretation.
+* **Exploratory logs.** Logs 2026-07-24_02 and 2026-07-25_01 use PCoA-derived labels. They are kept as a record and are not used for the final results.
+* **Figure 088** is identical to Figure 045, the six-batch (N = 134) exclusive-ASV table.
+* **Figure values.** Taxonomic percentages in logs 2026-07-25_01 and 2026-08-18_01 were measured from the bar heights in the figures (about ±0.2 percentage points), because the scripts do not export the group means.
+* **ITS2.** The ITS2 results come from the six-batch set only (2026-07-24_01). The five-batch pipeline computes ITS2 diversity metrics (2026-07-29_01), but they were not analysed further. The number of ITS2 samples retained at 8,600 reads is not recorded.
+
+---
+
+## 7. How to run
+
+```bash
+# QIIME 2 and PICRUSt2, five-batch design (macOS; conda environments qiime2-amp and picrust2, osx-64)
+bash pipeline/run_pipeline.sh
+
+# R analyses of the final set (N = 110)
+Rscript pipeline/run_analysis.R
 ```
 
-* **`Domain` (Target Assay):**
-  * `B_`: Bacterial 16S rRNA amplicon
-  * `F_`: Fungal ITS2 amplicon
-* **`Treatment` (Inoculation Condition):**
-  * `B`: Gijang B (GB) soil treatment
-  * `M`: GB Control (Peat plug + MES buffer)
-  * `J`: Gyeongju (GJ) soil treatment
-  * `jM`: GJ Control (Peat plug + MES buffer)
-* **`Batch`:** Experimental cohort within the P generation (`B1`, `B2`, `B3`, `J1`, `J2`).
-* **`Replicate`:** Plant individual replicate within a set (e.g., `-1` through `-11`).
-* **`R[1|2]`:** Directional read index (`R1` = Forward, `R2` = Reverse).
+* `pipeline/run_pipeline.sh` expects the raw folders `Bacteria_<batch>/` and `Fungi_<batch>/` (GB1–GB3, GJ1–GJ2) in the working directory.
+* The DADA2 read-tracking step uses `merge_16S_dada2_stats.py` and `merge_ITS_dada2_stats.py`, which are not in the repository. The step is skipped if they are missing.
+* `pipeline/run_analysis.R` sets the working directory with `setwd("/Users/heechan/Desktop/miseq_data_without_GJSet4")`; change this path before running. The script prints figures to the graphics device instead of saving them. The PICRUSt2 sections write CSV files to `figure/`, which must exist.
+* `modules/` contains the same steps as numbered scripts (module-to-log mapping in Section 8). Modules 01–05 import and process only the five final batches. Modules 06–09 reproduce the six-batch analyses (N = 127 and 134) only if GJ3 is added back to modules 01–04.
+* **Module 10 deletes the raw GJ3 folders** (`rm -rf Bacteria_GJ3 Fungi_GJ3`) and earlier outputs. Keep a backup before running it.
+* Most figures in `assets/` were saved from interactive R sessions. The `ggsave()` calls in `modules/` were added later and use other image sizes; rerunning a module overwrites the corresponding figure. Modules 06–08 do not save every figure (for example 019, 020 and 028–040) and partly use other file names (module 08: `Bacteria_16S_Final_*.png`). Figures 001–014 are screenshots from QIIME 2 View; Figures 045 and 088 are screenshots of the exclusive-ASV table.
 
 ---
 
-## 4. Repository Structure
-
-This repository follows the standardized dry-lab log architecture:
+## 8. Repository layout
 
 ```text
 .
-├── assets/         # High-resolution output figures (Alpha/Beta diversity, Heatmaps, Volcano plots, Forest plots)
-├── logs/           # Dated computational logs documenting parameter decisions and run outputs
-├── scripts/        # Sequential, executable analysis scripts (Shell, R, QIIME 2, PICRUSt2)
-└── README.md       # Project documentation and reproduction instructions
+├── README.md
+├── assets/     # figures 001–088, numbered in log order
+├── logs/       # analysis logs, 2026-07-22 to 2026-08-24
+├── modules/    # step-by-step scripts (see table) and make_metadata.py
+└── pipeline/   # run_pipeline.sh (QIIME 2, PICRUSt2), run_analysis.R (R, N = 110)
 ```
 
----
-
-## 5. Computational Workflow
-
-```text
-                  miseq_data/ (Raw FastQ Batches)
-                             │
-     ┌───────────────────────┴───────────────────────┐
-     ▼                                               ▼
-[16S Bacteria (5 Batches)]               [ITS2 Fungi (5 Batches)]
-     │                                               │
-1. Import (Casava Format)                        1. Import (Casava Format)
-     │                                               │
-2. Cutadapt Primer Trimming                      2. Cutadapt Primer Trimming
-   (341F / 805R + N-spacers)                        (ITS3 / ITS4 + N-spacers)
-     │                                               │
-3. Batch-Specific DADA2                          3. Batch-Specific DADA2
-   (Trunc: F=260, R=200)                            (Trunc: F=0, R=0 for length variance)
-     │                                               │
-4. Merge Tables & Rep-Seqs                       4. Merge Tables & Rep-Seqs
-     │                                               │
-5. Taxonomy (SILVA 138)                          5. Taxonomy (UNITE v10)
-   + Host Filtering (Mito/Chloro/Cyano)             + Non-Fungal Filtering (k__Fungi)
-     │                                               │
-6. MAFFT + FastTree                             6. [SKIP TREE BUILDING]
-     │                                               │
-7. Core Diversity (Rarefied: 27,000)             7. Core Diversity (Rarefied: 8,600)
-     │                                               │
-     ├───────────────────────┬───────────────────────┘
-     │                       ▼
-     │        8. Export to R (via qiime2R)
-     │        9. Differential Abundance (LinDA)
-     │        10. Taxonomic Agglomeration (Phylum to Genus)
-     ▼
-11. Functional Prediction (PICRUSt2)
-     │
-12. Pathway Differential Abundance (ggpicrust2)
-```
+| Log | Content | Sample set | Modules | Figures |
+| :--- | :--- | :--- | :--- | :--- |
+| 2026-07-22_01 | environment, FASTQ merging, import | six batches | 00, 01 | — |
+| 2026-07-22_02 | primer removal, DADA2 | six batches | 02, 03 | 001–005 |
+| 2026-07-23_01 | merging, tree, taxonomy, metadata | six batches | 04, 05 | 006–008 |
+| 2026-07-23_02 | core metrics, QIIME 2 PERMANOVA, x/y samples | full, standard | 05 | 009–014 |
+| 2026-07-24_01 | alpha and beta diversity in R; ITS2 | full, standard | 06 | 015–022 |
+| 2026-07-24_02 | label reassignment (exploratory) | reassigned | 07 | 023–030 |
+| 2026-07-25_01 | diversity, taxonomy, LinDA (exploratory) | reassigned | 08, 09 | 031–045 |
+| 2026-07-29_01 | removal of GJ3, five-batch rebuild, PICRUSt2 | final | 10 | — |
+| 2026-08-10_01 | alpha and beta diversity | final | 11 | 046–066 |
+| 2026-08-18_01 | taxonomic composition | final | 12 | 067–077 |
+| 2026-08-24_01 | LinDA, PICRUSt2 pathways | final | 13 | 078–088 |
 
 ---
 
-### Step-by-Step Processing Strategy
+## 9. Software
 
-#### 1. Ingestion & Demultiplexing
-* Raw FastQ directories for the 5 verified experimental batches (`GB1`, `GB2`, `GB3`, `GJ1`, `GJ2`) are imported into QIIME 2 using the `CasavaOneEightSingleLanePerSampleDirFmt` protocol as `SampleData[PairedEndSequencesWithQuality]`.
-* Ambiguous libraries from batch `GJ3` (Set 4 and mislabeled $x/y$ extras) were excluded to maintain analytical reproducibility and eliminate circular classification bias.
-
-#### 2. Primer & Heterogeneity Spacer Cleavage
-* `qiime cutadapt trim-paired` strips locus-specific primers and variable-length N-spacers (`341F/805R` for 16S, `ITS3/ITS4` for ITS2) under an error tolerance of $0.15$ with `--p-discard-untrimmed`.
-
-#### 3. Batch-Specific DADA2 Denoising
-Parametric error models are trained independently within each sequencing run prior to table consolidation:
-* **16S V3–V4 Strategy:** Truncation set to `--p-trunc-len-f 260` and `--p-trunc-len-r 200` with $\text{maxEE} = (2.0, 3.0)$. This removes terminal Phred decay while ensuring $> 20$ bp overlap for paired contig assembly across the ~460 bp amplicon.
-* **ITS2 Strategy:** Positional truncation is disabled (`--p-trunc-len-f 0 --p-trunc-len-r 0`) to prevent systemic exclusion of naturally short or long fungal ITS amplicons. Quality control is governed strictly by quality score and expected error filtering (`maxEE` $2.0 / 3.0$).
-
-#### 4. Feature Consolidation & Decontamination
-* Exact Amplicon Sequence Variants (ASVs) and representative sequences are merged across batches via `qiime feature-table merge` and `qiime feature-table merge-seqs`.
-* **16S Filtering:** Classified against **SILVA 138** (99% OTUs). Features annotated as mitochondria, chloroplast, Cyanobacteria, Archaea, Eukaryota, Rickettsiales, Rickettsiellales, or Unassigned are purged.
-* **ITS2 Filtering:** Classified against **UNITE v10** (dynamic 99% OTUs). Only features retained within `k__Fungi` are preserved.
-
-#### 5. Phylogenetic Inference vs. Non-Phylogenetic Analysis
-* **16S Pipeline:** Alignment via `MAFFT`, hypervariable positional masking, and midpoint-rooted tree construction via `FastTree` to support phylogenetic distance metrics (Faith's PD, Weighted/Unweighted UniFrac).
-* **ITS2 Pipeline:** Global alignment and tree construction are bypassed due to non-homologous length variation across fungal phyla. Diversity is calculated strictly using non-phylogenetic distances (Bray-Curtis, Jaccard).
-
-#### 6. Normalization & Ecological Modeling in R
-* Feature tables are normalized via rarefaction thresholds established from saturation curves: **27,000 reads/sample** for 16S (100% sample retention) and **8,600 reads/sample** for ITS2.
-* Downstream analysis in R (`aarch64`):
-  * **Community Structure:** Multi-metric ordination (PCoA and NMDS) and non-parametric multivariate variance partitioning (PERMANOVA / `adonis2`).
-  * **Differential Abundance:** Linear Models for Differential Abundance (**LinDA**) applied to synchronous pairwise contrasts (`GB_Treatment` vs. `GB_Control`; `GJ_Treatment` vs. `GJ_Control`), accounting for compositional effects without rank-tied $p$-value artifacts.
-  * **Private Biomarker Mining:** Identification of group-exclusive rare taxa establishing uniquely under specific soil inocula.
-
-#### 7. Functional Metagenome Inference (PICRUSt2)
-* Decontaminated 16S ASVs and clean BIOM tables are processed through the `picrust2_pipeline.py` architecture (`EPA-ng`, `GAPPA`, `castor`, and `MinPath`).
-* Predicted MetaCyc metabolic pathway abundances are analyzed in R using `ggpicrust2` to identify functional enrichments (carbon fixation, amino acid catabolism, secondary metabolism) differentiating regional rhizosphere states.
+* **QIIME 2** amplicon distribution 2024.10 (conda environment `qiime2-amp`, `osx-64` under Rosetta 2), with cutadapt 4.9, DADA2 1.30.0, MAFFT 7.526, FastTree 2.1.11 and UniFrac 1.4.
+* **PICRUSt2** 2.6.3 (conda environment `picrust2`), with EPA-ng 0.3.8, GAPPA 0.9.0, castor 1.8.6 and MinPath 1.6.
+* **R** 4.6.1 (`aarch64-apple-darwin23`): qiime2R 0.99.6, vegan 2.7-6, MicrobiomeStat 1.4 (LinDA), rstatix 1.0.0, ggpicrust2 2.5.17 (pathway names only), ggplot2 4.0.3, ggpubr 1.0.0, patchwork 1.3.2, pheatmap 1.0.13, ggrepel, RColorBrewer, tidyverse. phyloseq 1.56.0 and ComplexHeatmap are installed or loaded by some scripts but are not used for the reported results.
+* **Python 3** (`modules/make_metadata.py`): pandas.
 
 ---
 
-## 6. Software Dependencies & Computing Environments
+## 10. Reference databases
 
-Computational tasks are partitioned between an emulated x86_64 Conda architecture (for legacy binaries and QIIME 2 compatibility) and a native ARM64 Apple Silicon environment for high-performance statistical modeling in R.
-
----
-
-### Architecture 1: Emulated x86_64 Environment (`osx-64` via Rosetta 2)
-
-#### 1. Primary Amplicon Pipeline (`qiime2-amp` conda environment)
-* **Core Framework:** QIIME 2 Amplicon Distribution (v2024.10.1)
-* **Demultiplexing & Primer Trimming:** Cutadapt (v4.9 via `q2-cutadapt`)
-* **Denoising & ASV Resolution:** DADA2 (v1.30.0 via `q2-dada2`)
-* **Multiple Sequence Alignment:** MAFFT (v7.526)
-* **Phylogenetic Reconstruction:** FastTree (v2.1.11)
-* **Phylogenetic Distance Metrics:** UniFrac binaries (v1.4)
-
-#### 2. Functional Metagenome Inference (`picrust2` conda environment)
-* **Metagenomic Prediction:** PICRUSt2 (v2.6.3)
-* **Phylogenetic Placement:** EPA-ng (v0.3.8) and GAPPA (v0.9.0)
-* **Hidden State Prediction:** `castor` (v1.8.6)
-* **Pathway Parsimony:** MinPath (v1.6)
-
----
-
-### Architecture 2: Native ARM64 Environment (`aarch64-apple-darwin23`)
-
-* **Base Platform:** R (v4.6.1)
-
-#### Specialized R Packages
-* **Artifact Ingestion & Containerization:**
-  * `qiime2R` (v0.99.6) — Direct import of `.qza`/`.qzv` artifacts
-  * `phyloseq` (v1.56.0) — Central data object orchestration
-* **Community Ecology & Ordination:**
-  * `vegan` (v2.7-6) — Alpha/Beta diversity, NMDS ordination, and PERMANOVA (`adonis2`)
-  * `MicrobiomeStat` (v1.4) / `LinDA` — Linear regression modeling for differential abundance and compositional bias correction
-  * `rstatix` (v1.0.0) — Non-parametric post-hoc testing
-* **Functional Pathway Evaluation:**
-  * `ggpicrust2` (v2.5.17) — MetaCyc pathway differential abundance, forest plotting, and Z-score heatmaps
-* **Mixed-Effects & Compositional Modeling:**
-  * `lme4` (v2.0-6) & `lmerTest` (v3.2-1) — Mixed-effects modeling accounting for batch structures
-  * `zCompositions` (v1.6.2) — Zero-replacement strategies for compositional data
-* **Data Visualization & Graphics:**
-  * `ggplot2` (v4.0.3), `ggpubr` (v1.0.0), `patchwork` (v1.3.2)
-  * `ComplexHeatmap` / `pheatmap` (v1.0.13) — Hierarchical clustering and effect-size heatmaps
-
----
-
-### Reference Databases & Pre-Trained Classifiers
-
-* **16S rRNA (Bacterial Community):**
-  * Database: **SILVA 138** (99% OTUs, full-length 16S)
-  * Classifier: Naive Bayes classifier trained via `scikit-learn` (v1.4.2)
-  * Target artifact: `silva-138-99-nb-classifier.qza`
-* **ITS2 (Fungal Community):**
-  * Database: **UNITE v10** (ver10 99% threshold, release 04.04.2024)
-  * Classifier: Naive Bayes classifier formatted for QIIME 2
-  * Target artifact: `unite_ver10_99_04.04.2024-Q2-2024.5.qza`
+* **16S:** SILVA 138, 99% OTUs, full-length 16S; QIIME 2 naive Bayes classifier `silva-138-99-nb-classifier.qza` (scikit-learn 1.4.2), from data.qiime2.org.
+* **ITS2:** UNITE v10, 99%, release 04.04.2024; classifier `unite_ver10_99_04.04.2024-Q2-2024.5.qza`, from github.com/colinbrislawn/unite-train.
+* **PICRUSt2:** default reference files; MetaCyc pathway map `metacyc_pathways_structured_filtered_v24.txt`.

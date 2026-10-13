@@ -1,148 +1,151 @@
-# Batch Consolidation, Phylogenetic Inference, Host Decontamination, and Cohort Stratification
-**Date:** July 23, 2026  
-**Project:** 04_MicroTom_P_Rhizosphere_Amplicon_Analysis  
-**Target Assays:** Bacterial 16S rRNA (V3–V4) & Fungal ITS2  
-**Input Artifacts:** `03_denoised_16S/*`, `03_denoised_ITS/*`, `classifiers/*`  
-**Output Artifacts:** `04_merged_16S/*`, `04_merged_ITS/*`, `06_phylo_16S/*`, `05_taxonomy_16S/*`, `05_taxonomy_ITS/*`, `metadata_P_generation.tsv`  
+# Batch Merging, Phylogeny, Taxonomic Filtering and Metadata
+
+**Date:** 2026-07-23
+**Stage:** merging of per-batch tables; 16S tree; taxonomic classification and filtering; sample metadata; standard-only tables
+**Cohort:** six batches; full set N = 134, standard set N = 127 (16S and ITS2)
+**Script:** `modules/04_merge_and_decontam.sh`, `modules/05_phylogeny_and_diversity.sh` (tree), `modules/make_metadata.py`
+**Input:** `03_denoised_16S/*`, `03_denoised_ITS/*`, `classifiers/*`
+**Output:** `04_merged_16S/*`, `04_merged_ITS/*`, `06_phylo_16S/*`, `05_taxonomy_16S/*`, `05_taxonomy_ITS/*`, `metadata_P_generation.tsv`
 
 ---
 
-## 1. Methodological & Theoretical Rationale
+## 1. Merging the batches
 
-### A. Batch Feature Table & Sequence Consolidation
-Because DADA2 infers exact Amplicon Sequence Variants (ASVs) rather than clustering reads into arbitrary similarity bins (e.g., 97% OTUs), sequences across independent sequencing runs are directly comparable at single-nucleotide resolution.
-* **Deterministic Matching:** Identical biological sequences generated across different physical MiSeq runs receive identical MD5 feature hashes. Merging collapses redundant features across batches while summing their counts across samples.
-* **Cross-Batch Consistency:** Merging representative sequence sets confirms feature convergence without sequence inflation.
+For each assay, the six per-batch feature tables and representative-sequence sets were combined with `qiime feature-table merge` and `qiime feature-table merge-seqs`. DADA2 ASVs are exact sequences with MD5-hash IDs, so an ASV found in several batches has the same ID everywhere and its counts are combined.
 
-### B. Phylogenetic Reconstruction: Bacterial 16S vs. Fungal ITS
-* **16S Multiple Sequence Alignment & FastTree:**
-  1. *De Novo Alignment (`MAFFT`):* Aligns 32,500 bacterial ASVs based on conserved secondary structure motifs within the 16S rRNA gene.
-  2. *Positional Masking:* Masks phylogenetically uninformative, hypervariable, or ambiguously aligned nucleotide columns to reduce tree reconstruction artifacts.
-  3. *Approximately-Maximum-Likelihood Tree (`FastTree`):* Computes a generalized time-reversible (GTR) phylogenetic tree using heuristics to handle tens of thousands of taxa efficiently.
-  4. *Midpoint Rooting:* Establishes a formal root at the midpoint of the longest path between any two tips, providing evolutionary branch-length context required for downstream phylogenetic beta-diversity metrics (Weighted and Unweighted UniFrac) and Faith’s Phylogenetic Diversity ($PD$).
-* **Fungal ITS Tree Omission:**
-  Global sequence alignment is **biologically invalid** for the fungal ITS2 locus. Unlike the catalytic 16S rRNA molecule, the non-coding internal transcribed spacer evolves through rapid insertions, deletions, and structural shifts. Because positional homology cannot be established across divergent fungal phyla (e.g., *Ascomycota* vs. *Basidiomycota* vs. *Mucoromycota*), phylogenetic tree reconstruction is bypassed. Downstream fungal community analyses rely exclusively on non-phylogenetic distance metrics (Bray-Curtis and Jaccard).
-
-### C. Taxonomic Classification & Decontamination Logic
-Sequences were classified using optimized Naive Bayes classifiers trained on the **SILVA 138** (99% OTUs, full-length 16S) and **UNITE v10** (dynamic species hypotheses, ver10 release) databases.
-
-* **16S Negative Exclusion Filtering:**
-  Universal 16S primers (341F/805R) cross-amplify non-target DNA:
-  * `chloroplast` & `mitochondria`: Co-amplified organellar DNA from tomato root tissue (*Solanum lycopersicum* plastid 16S and mitochondrial 18S-like segments).
-  * `Archaea` & `Eukaryota`: Off-target domains outside the scope of the bacterial survey.
-  * `Cyanobacteria`: Often originates from plant chloroplast homology or photosynthetic surface contaminants in soil/peat plugs.
-  * `Rickettsiales` & `Rickettsiellales`: Obligate intracellular alphaproteobacteria with close ancestral homology to plant mitochondria.
-  * `Unassigned`: Sequences lacking recognizable bacterial phylum-level markers, typically representing non-specific amplification artifacts or chimeric read-throughs.
-* **Fungal ITS Positive Inclusion Filtering:**
-  Primer sets ITS3/ITS4 cross-amplify host plant nuclear ribosomal DNA and soil microeukaryotes. An inclusion filter retaining strictly `k__Fungi` removes host plant amplifications, protists, and unassigned eukaryotic noise.
-
-### D. Anomaly Handling & Experimental Cohort Stratification
-During the harvest of cohort `GJ3`, specific samples were labeled with terminal suffixes `x` or `y` (e.g., `B_J2x`, `B_J2y`, `B_J13x`). 
-* **Biological Ambiguity:** Physical records indicated a suspected mislabeling where control samples were designated with `x` and treated samples with `y`. However, because assignment certainty cannot be confirmed *a priori*, retaining these samples inside primary experimental contrasts introduces potential classification error.
-* **Bifurcated Workflow Architecture:**
-  1. **Clean / Full Cohorts (`table_*_clean.qza`):** Retain all 134 decontaminated samples, including `Extra_Sample` profiles. Used for quality benchmarking, ordination topology tests, and checking whether `x`/`y` samples cluster consistently with known treatment centroids.
-  2. **Standard Cohorts (`table_*_standard.qza`):** Filtered against `metadata_P_generation.tsv` using `[Sample_Type] = 'Standard'`. Excludes the 7 ambiguous `Extra_Sample` replicates, establishing a clean experimental baseline ($N = 127$) for initial hypothesis testing.
-
-```text
-                      Raw Denoised ASV Batches (12 Runs)
-                                      │
-                        qiime feature-table merge
-                                      │
-                         Merged ASV Tables & Seqs
-                                      │
-              ┌───────────────────────┴───────────────────────┐
-              ▼                                               ▼
-     Bacterial 16S Branch                            Fungal ITS Branch
-              │                                               │
-   MAFFT + FastTree Rooting                         [No Tree Construction]
-              │                                               │
-   SILVA 138 Classification                        UNITE v10 Classification
-              │                                               │
-   Exclusion Filtering                             Inclusion Filtering
-   (Host, Organelle, Cyanobacteria)                (Strictly k__Fungi)
-              │                                               │
-              └───────────────────────┬───────────────────────┘
-                                      ▼
-                        Metadata-Driven Stratification
-                       (metadata_P_generation.tsv)
-                                      │
-         ┌────────────────────────────┴────────────────────────────┐
-         ▼                                                         ▼
-  Clean / Full Tables                                      Standard Tables
-  (N = 134; Includes Extra x/y)                           (N = 127; Standard Only)
-  - Sensitivity checks                                     - Primary Hypothesis Testing
-  - Ordination consistency                                 - Growth Trait Correlation
+```bash
+qiime feature-table merge \
+  --i-tables 03_denoised_16S/table_16S_GB1.qza 03_denoised_16S/table_16S_GB2.qza 03_denoised_16S/table_16S_GB3.qza \
+             03_denoised_16S/table_16S_GJ1.qza 03_denoised_16S/table_16S_GJ2.qza 03_denoised_16S/table_16S_GJ3.qza \
+  --o-merged-table 04_merged_16S/table_16S_merged.qza
+qiime feature-table merge-seqs \
+  --i-data 03_denoised_16S/repseq_16S_GB1.qza ... 03_denoised_16S/repseq_16S_GJ3.qza \
+  --o-merged-data 04_merged_16S/repseq_16S_merged.qza
 ```
 
----
-
-## 2. Global Feature Synthesis Diagnostics (16S Merged Baseline)
-
-Initial consolidation across the 6 bacterial batches generated the master frequency table `table_16S_merged.qzv`, establishing sequencing coverage across the P generation rhizosphere cohort.
-
-![Merged Feature Table Summary](../assets/006_table_16S_merged.qzv.png)
-
-### Summary Statistics
-* **Sample Count:** 134 total sequencing libraries.
-* **ASV Richness:** 32,500 distinct bacterial amplicon sequence variants.
-* **Total Read Volume:** 9,773,691 high-confidence non-chimeric reads.
+The ITS2 commands are the same with `_ITS_` file names.
 
 ---
 
-### Library Depth Distribution
+## 2. 16S phylogeny
 
-![Sample Sequencing Depth Frequency Histogram](../assets/007_table_16S_merged.qzv.png)
+```bash
+qiime phylogeny align-to-tree-mafft-fasttree \
+  --i-sequences 04_merged_16S/repseq_16S_merged.qza \
+  --p-n-threads 4 \
+  --o-alignment 06_phylo_16S/aligned_repseq_16S.qza \
+  --o-masked-alignment 06_phylo_16S/masked_aligned_repseq_16S.qza \
+  --o-tree 06_phylo_16S/unrooted_tree_16S.qza \
+  --o-rooted-tree 06_phylo_16S/rooted_tree_16S.qza
+```
 
-* **Coverage Uniformity:** Library sizes exhibit a unimodal distribution centered tightly around the mean ($72,938$ reads) and median ($75,637$ reads).
-* **Interquartile Range:** Spans from $58,091.2$ reads (25th percentile) to $83,780.5$ reads (75th percentile).
-* **Minimum Retained Depth:** The lowest library achieved $27,915$ reads, establishing that subsequent rarefaction thresholds can target $> 25,000$ reads per sample without dropping experimental replicates.
-* **Maximum Retained Depth:** $160,800$ reads.
+This pipeline aligns the ASVs with MAFFT, masks highly variable alignment columns, builds an approximately maximum-likelihood tree with FastTree and roots it at the midpoint. The rooted tree is used for Faith's PD and UniFrac.
 
----
-
-### Feature Distribution & Sparsity
-
-![Frequency per Feature Distribution](../assets/008_table_16S_merged.qzv.png)
-
-* **Long-Tail Sparsity:** In line with soil microbiome distributions, feature frequencies follow a power-law curve.
-* **Low-Frequency Dominance:** 
-  * 1st Quartile frequency = 2 counts.
-  * Median frequency = 8 counts across all 134 samples.
-  * 3rd Quartile frequency = 47 counts.
-* **Dominant Core Taxa:** Mean feature frequency reaches $300.7$ counts, driven by an elite fraction of rhizosphere-adapted ASVs reaching up to $166,731$ counts. This distribution emphasizes the need for compositional zero handling and variance-stabilizing normalization downstream.
+No tree was built for ITS2. ITS2 sequences differ greatly in length and cannot be aligned reliably across fungal phyla, so ITS2 analyses use only non-phylogenetic distances (Bray–Curtis, Jaccard).
 
 ---
 
-## 3. Metadata Configuration Matrix (`metadata_P_generation.tsv`)
+## 3. Taxonomic classification and filtering
 
-Metadata parsing structured all 134 samples into a validated QIIME 2 mapping scheme, isolating ambiguous labels while preserving operational factors.
+| Assay | Reference | Classifier file |
+| :--- | :--- | :--- |
+| 16S | SILVA 138, 99% OTUs, full-length 16S | `silva-138-99-nb-classifier.qza` (naive Bayes, scikit-learn 1.4.2 build, data.qiime2.org) |
+| ITS2 | UNITE v10, 99%, release 04.04.2024 | `unite_ver10_99_04.04.2024-Q2-2024.5.qza` (from github.com/colinbrislawn/unite-train) |
 
-### Field Definitions & Typing
+```bash
+qiime feature-classifier classify-sklearn \
+  --i-classifier classifiers/silva-138-99-nb-classifier.qza \
+  --i-reads 04_merged_16S/repseq_16S_merged.qza \
+  --p-n-jobs 8 \
+  --o-classification 05_taxonomy_16S/taxonomy_16S.qza
 
-| Header Field | QIIME 2 Type | Theoretical Purpose | Levels / Structure |
+qiime taxa filter-table \
+  --i-table 04_merged_16S/table_16S_merged.qza \
+  --i-taxonomy 05_taxonomy_16S/taxonomy_16S.qza \
+  --p-exclude mitochondria,chloroplast,Archaea,Eukaryota,Cyanobacteria,Rickettsiales,Rickettsiellales,Unassigned \
+  --o-filtered-table 05_taxonomy_16S/table_16S_clean.qza
+
+qiime taxa filter-table \
+  --i-table 04_merged_ITS/table_ITS_merged.qza \
+  --i-taxonomy 05_taxonomy_ITS/taxonomy_ITS.qza \
+  --p-include k__Fungi \
+  --o-filtered-table 05_taxonomy_ITS/table_ITS_clean.qza
+```
+
+The ITS2 classification used the UNITE classifier with `--p-n-jobs 4`.
+
+Reasons for the 16S exclusions:
+
+* `mitochondria`, `chloroplast`: organelle sequences, mostly from the host plant.
+* `Archaea`, `Eukaryota`: outside the scope of the bacterial survey.
+* `Cyanobacteria`: removed as a whole together with chloroplasts. This also removes any true cyanobacteria.
+* `Rickettsiales`, `Rickettsiellales`: obligate intracellular lineages; Rickettsiales are closely related to mitochondria.
+* `Unassigned`: not classified at domain level.
+
+For ITS2, only features assigned to `k__Fungi` were kept. This removes plant and other non-fungal sequences amplified by ITS3/ITS4.
+
+---
+
+## 4. Sample metadata (`metadata_P_generation.tsv`)
+
+`modules/make_metadata.py` reads the sample IDs from both clean tables and derives each column from the sample code:
+
+| Column | Values | Rule |
+| :--- | :--- | :--- |
+| `Domain` | `Bacteria`, `Fungi` | `B_` or `F_` prefix |
+| `Sample_Type` | `Standard`, `Extra_Sample` | `Extra_Sample` if the code ends in `x` or `y` |
+| `Treatment_Group` | `GB_Control`, `GB_Treatment`, `GJ_Control`, `GJ_Treatment` (`*_Extra` for x/y samples) | code prefix `M`, `B`, `jM`, `J` |
+| `Target_Soil` | `Gijang_B`, `Gyeongju`, `Base_Soil` | from treatment |
+| `Inoculum` | `GB_Soil_Suspension`, `GJ_Soil_Suspension`, `MES_Buffer_Alone` | from treatment |
+| `Sequencing_Batch` | `B1`, `B3`, `B4`, `M1`, `M3`, `M4`, `J2`, `J3`, `J4`, `jM2`, `jM3`, `jM4`, `GJ3_Extra` | code prefix (letters + set number) |
+| `Generation` | `P` | constant |
+
+Despite its name, `Sequencing_Batch` holds the sample set (for example `B1` or `M1`), not the batch folder. Each batch folder contains one treated set and one control set: GB1 = `B1` + `M1`, GB2 = `B3` + `M3`, GB3 = `B4` + `M4`, GJ1 = `J2` + `jM2`, GJ2 = `J3` + `jM3`, GJ3 = `J4` + `jM4` + the x/y samples. All seven x/y codes start with `J`, so the script labels them `GJ_Treatment_Extra` and assigns them to `GJ3_Extra`.
+
+---
+
+## 5. The x/y samples: full and standard tables
+
+Seven GJ3 libraries have codes ending in `x` or `y` (`J2x`, `J2y`, `J5x`, `J5y`, `J7x`, `J8x`, `J13x`). The harvest records suggested that these tubes were mislabelled, possibly with controls marked `x` and treated samples marked `y`. Because their group could not be confirmed, two versions of each table were made:
+
+| Table | Filter | Samples per assay | Use |
+| :--- | :--- | ---: | :--- |
+| `table_*_clean.qza` ("full") | taxonomy filter only | 134 | sensitivity checks; inspection of the x/y samples |
+| `table_*_standard.qza` ("standard") | taxonomy filter + `[Sample_Type]='Standard'` | 127 | main comparisons in the six-batch analyses |
+
+```bash
+qiime feature-table filter-samples \
+  --i-table 05_taxonomy_16S/table_16S_clean.qza \
+  --m-metadata-file metadata_P_generation.tsv \
+  --p-where "[Sample_Type]='Standard'" \
+  --o-filtered-table 05_taxonomy_16S/table_16S_standard.qza
+```
+
+The same filter was applied to `table_ITS_clean.qza`. Both sets were later replaced by the five-batch set (N = 110; see 2026-07-29_01).
+
+| Assay | Table | Content | Used for |
 | :--- | :--- | :--- | :--- |
-| `sample-id` | `#q2:types` | Unique run identifier | `B_*`, `F_*` |
-| `Domain` | `categorical` | Amplicon target organism | `Bacteria`, `Fungi` |
-| `Sample_Type` | `categorical` | Verification status | `Standard`, `Extra_Sample` |
-| `Treatment_Group` | `categorical` | Experimental condition | `GB_Treatment`, `GB_Control`, `GJ_Treatment`, `GJ_Control`, `*_Extra` |
-| `Target_Soil` | `categorical` | Inoculum geographic origin | `Gijang_B`, `Gyeongju`, `Base_Soil` |
-| `Inoculum` | `categorical` | Physical biological source | `GB_Soil_Suspension`, `GJ_Soil_Suspension`, `MES_Buffer_Alone` |
-| `Sequencing_Batch`| `categorical` | Batch effect blocking factor | `GB1`, `GB2`, `GB3`, `GJ1`, `GJ2`, `GJ3`, `GJ3_Extra` |
-| `Generation` | `categorical` | Plant lineage stage | `P` |
+| 16S | `04_merged_16S/table_16S_merged.qza` | merged, unfiltered | QC summary (Section 6) |
+| 16S | `05_taxonomy_16S/table_16S_clean.qza` | taxonomy-filtered, N = 134 | full-set analyses |
+| 16S | `05_taxonomy_16S/table_16S_standard.qza` | taxonomy-filtered, N = 127 | standard-set analyses |
+| ITS2 | `04_merged_ITS/table_ITS_merged.qza` | merged, unfiltered | QC summary |
+| ITS2 | `05_taxonomy_ITS/table_ITS_clean.qza` | `k__Fungi` only, N = 134 | full-set analyses |
+| ITS2 | `05_taxonomy_ITS/table_ITS_standard.qza` | `k__Fungi` only, N = 127 | standard-set analyses |
 
 ---
 
-## 4. Cohort Partitioning Summary
+## 6. Merged 16S table (before taxonomic filtering)
 
-Applying taxonomic filters and metadata criteria partitioned the dataset into primary and sensitivity tables:
+![Merged 16S feature table summary](../assets/006_table_16S_merged.qzv.png)
 
-### Processed Artifacts
+* 134 libraries, 32,500 ASVs, 9,773,691 reads.
 
-| Target Assay | Processing State | Artifact File | Filtering Criteria | Primary Downstream Application |
-| :--- | :--- | :--- | :--- | :--- |
-| **16S** | Merged Raw | `04_merged_16S/table_16S_merged.qza` | None | Initial QC inspection |
-| **16S** | Decontaminated Full | `05_taxonomy_16S/table_16S_clean.qza` | Host / Organelle Excluded | Ordination sensitivity testing ($N=134$) |
-| **16S** | Standard Curated | `05_taxonomy_16S/table_16S_standard.qza` | Cleaned + `Sample_Type == Standard` | Primary hypothesis testing & phenotype correlation ($N=127$) |
-| **ITS2** | Merged Raw | `04_merged_ITS/table_ITS_merged.qza` | None | Initial QC inspection |
-| **ITS2** | Decontaminated Full | `05_taxonomy_ITS/table_ITS_clean.qza` | Positive `k__Fungi` Retained | Fungal ordination sensitivity testing ($N=134$) |
-| **ITS2** | Standard Curated | `05_taxonomy_ITS/table_ITS_standard.qza` | Cleaned + `Sample_Type == Standard` | Primary fungal community modeling ($N=127$) |
+![Reads per sample](../assets/007_table_16S_merged.qzv.png)
+
+* Reads per library: mean 72,938, median 75,637, interquartile range 58,091–83,781, minimum 27,915, maximum 160,800.
+* The distribution has its main peak at about 70,000–90,000 reads and a lower shoulder at 30,000–70,000 reads.
+* The smallest library (27,915 reads) set the upper limit for the 16S rarefaction depth (27,000 reads; see 2026-07-23_02).
+
+![Reads per ASV](../assets/008_table_16S_merged.qzv.png)
+
+* Reads per ASV across all libraries: median 8 (quartiles 2 and 47), mean 300.7, maximum 166,731. Most ASVs are rare.

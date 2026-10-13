@@ -1,168 +1,161 @@
-# Multi-Level Taxonomic Profiling (Phylum to Genus) and Lineage-Specific Succession
-**Date:** August 18, 2026  
-**Project:** 04_MicroTom_P_Rhizosphere_Amplicon_Analysis  
-**Target Assays:** Bacterial 16S rRNA (V3–V4)  
-**Platform:** R v4.6.1 (`aarch64-apple-darwin23`, Native ARM64)  
-**Input Artifacts:** `05_taxonomy_16S/table_16S_clean.qza`, `05_taxonomy_16S/taxonomy_16S.qza`, `metadata_P_generation.tsv`  
+# Taxonomic Composition from Phylum to Genus (N = 110)
+
+**Date:** 2026-08-18
+**Stage:** mean relative abundance per group at phylum, class, order, family and genus level
+**Cohort:** five batches, original labels; N = 110 (`GB_Control` 33, `GB_Treatment` 33, `GJ_Control` 22, `GJ_Treatment` 22)
+**Script:** `modules/12_taxonomic_profiling.R`; the same code is in `pipeline/run_analysis.R` (sections 3-1 to 3-5)
+**Platform:** R 4.6.1 (`aarch64-apple-darwin23`)
+**Input:** `07_diversity_16S/core_metrics/rarefied_table.qza`, `05_taxonomy_16S/taxonomy_16S.qza`, `metadata_P_generation.tsv`
 
 ---
 
-## 1. Taxonomic Agglomeration Framework & Visual Standardization
+## 1. Methods
 
-Following the pruning of compromised libraries, the verified $N = 110$ cohort (`GB_Control`: $33$, `GB_Treatment`: $33$, `GJ_Control`: $22$, `GJ_Treatment`: $22$) was systematically evaluated across five successive taxonomic ranks: Phylum, Class, Order, Family, and Genus. 
-
-To track biological shifts between conditions without visual distortion, graphics follow standardized aesthetic parameters:
-1. **Shared Clade Palette:** Identical taxonomic clades share exact hex-color mappings across global multi-group panels and pairwise lineage contrasts.
-2. **Dynamic Top-Taxa Ranking:** Clades falling outside the top-ranking abundance cutoffs within each rank are collapsed into the `Other` category to benchmark rare-biosphere expansion against the dominant core.
-3. **Synchronous Baseline Evaluation:** Treatment-induced community shifts are benchmarked directly against their paired temporal controls (`GB_Treatment` vs. `GB_Control`; `GJ_Treatment` vs. `GJ_Control`) to decouple true biological recruitment from timeline-dependent baseline drift.
-
----
-
-## 2. Phylum-Level Community Architecture
-
-![Global Phylum-Level Relative Abundance](../assets/067_16S_Relative_Abundance(Phylum).png)
-
-### Global Phylum Distribution
-The rhizosphere community across all conditions is dominated by 10 core phyla:
-* **`Proteobacteria`:** Represents the largest single fraction across all groups ($26.1\%\text{--}29.8\%$), showing a slight expansion in `GB_Treatment` ($29.8\%$) relative to `GB_Control` ($26.1\%$).
-* **`Bacteroidota`:** Maintains stable representation across conditions ($13.8\%\text{--}17.3\%$), peaking in `GJ_Control` ($17.3\%$) and stabilizing at $\sim 15.0\%$ in both soil treatments.
-* **`Actinobacteriota`:** Represents $11.4\%\text{--}14.8\%$ of total abundance, maintaining consistent colonization across peat baselines and soil inocula.
-* **`Planctomycetota` ($7.4\%\text{--}8.8\%$) & `Verrucomicrobiota` ($7.1\%\text{--}8.4\%$):** Form stable secondary rhizosphere populations.
-* **`Acidobacteriota`:** Displays the most pronounced treatment-induced expansion, increasing from $1.6\%$ in `GB_Control` to $4.2\%$ in `GB_Treatment`, and from $1.3\%$ in `GJ_Control` to $3.5\%$ in `GJ_Treatment`.
+* Relative abundances were computed per sample from the rarefied table (27,000 reads per sample). Taxonomy was parsed with `qiime2R::parse_taxonomy()`.
+* Reads without a name at the rank being plotted (empty, `NA` or a bare prefix such as `g__`) were labelled "Unassigned".
+* For each rank, taxa were ranked by their mean relative abundance over the samples in the plot, with "Unassigned" excluded from the ranking. The four-group plots show the top 10 phyla and the top 12 classes, orders, families and genera. The GB-only and GJ-only plots show the top 10 phyla, top 20 orders and top 30 genera, ranked within that experiment.
+* All remaining taxa, including "Unassigned", were summed per sample into "Other" before the group means were taken, so each bar adds up to 100%.
+* The GB-only and GJ-only plots use the same colour for the same taxon. The four-group plots use a separate palette.
+* "uncultured" is a placeholder name that SILVA uses in many unrelated lineages. The scripts group taxa by name, so the "uncultured" genus bar pools ASVs from different families.
+* No statistical test was applied at these ranks. Differential abundance was tested at ASV level (2026-08-24_01).
+* The scripts do not export the group means. The percentages below were measured from the bar heights in the figures (calibrated on the axis ticks) and are accurate to about ±0.2 percentage points.
 
 ---
 
-### Pairwise Phylum Contrasts (GB vs. GJ Lineages)
+## 2. Phylum
 
-![GB Lineage Phylum-Level Relative Abundance](../assets/068_16S_GB_Relative_Abundance(Phylum).png)
+![Phylum, four groups](../assets/067_16S_Relative_Abundance(Phylum).png)
 
-![GJ Lineage Phylum-Level Relative Abundance](../assets/069_16S_GJ_Relative_Abundance(Phylum).png)
+![Phylum, GB](../assets/068_16S_GB_Relative_Abundance(Phylum).png)
 
-* **Gijang B Lineage Shifts (Figure 068):**
-  * Inoculation with GB soil suspension triggers concurrent increases in `Proteobacteria` ($+3.7\%$), `Acidobacteriota` ($+2.6\%$), and `Chloroflexi` ($+1.1\%$).
-  * The `Other` fraction expands from $6.1\%$ in `GB_Control` to $8.8\%$ in `GB_Treatment`, reflecting the establishment of low-abundance exotic phyla introduced by field soil.
-  * Baseline peat dominance in `Firmicutes` ($8.2\% \to 5.3\%$) and `Patescibacteria` ($8.5\% \to 6.6\%$) contracts due to competitive displacement and dilution.
-* **Gyeongju Lineage Shifts (Figure 069):**
-  * GJ soil inoculation drives a similar expansion of `Acidobacteriota` ($1.3\% \to 3.5\%$) and `Chloroflexi` ($1.7\% \to 2.8\%$), while `Proteobacteria` remains steady ($\sim 29.1\%$).
-  * `Verrucomicrobiota` contracts from $8.4\%$ in `GJ_Control` to $7.1\%$ in `GJ_Treatment`.
-  * The `Other` fraction increases from $6.3\%$ to $8.7\%$, confirming that rare-biosphere recruitment is a shared feature of soil suspension exposure.
+![Phylum, GJ](../assets/069_16S_GJ_Relative_Abundance(Phylum).png)
 
----
+| Phylum (%) | GB_Control | GB_Treatment | GJ_Control | GJ_Treatment |
+| :--- | ---: | ---: | ---: | ---: |
+| Proteobacteria | 26.0 | 29.6 | 29.5 | 28.9 |
+| Bacteroidota | 15.5 | 15.3 | 17.9 | 16.0 |
+| Actinobacteriota | 10.0 | 9.7 | 12.0 | 11.2 |
+| Planctomycetota | 9.8 | 9.0 | 9.5 | 7.7 |
+| Verrucomicrobiota | 8.9 | 10.0 | 8.2 | 6.9 |
+| Patescibacteria | 7.7 | 6.7 | 6.2 | 8.5 |
+| Firmicutes | 8.7 | 4.2 | 6.0 | 4.6 |
+| Chloroflexi | 2.9 | 3.7 | 1.8 | 2.9 |
+| Myxococcota | 2.9 | 3.0 | 1.8 | 2.8 |
+| Acidobacteriota | 1.6 | 3.3 | 1.3 | 4.3 |
+| Other | 6.1 | 5.5 | 5.8 | 6.1 |
 
-## 3. Class-Level Taxonomic Succession
+The GB-only and GJ-only plots contain the same ten phyla; their group means are the same as in the four-group plot.
 
-![Global Class-Level Relative Abundance](../assets/070_16S_Relative_Abundance(Class).png)
-
-### Proteobacterial & Deep-Lineage Dynamics
-Resolving phyla into distinct classes uncovers sub-lineage divergence between conditions:
-* **`Alphaproteobacteria`:** Dominates the proteobacterial fraction across all samples ($17.8\%\text{--}20.1\%$), maintaining stable relative abundance regardless of soil inoculation.
-* **`Gammaproteobacteria`:** Exhibits noticeable enrichment following soil inoculation, expanding from $9.6\%$ in `GB_Control` to $12.1\%$ in `GB_Treatment`, and from $9.8\%$ in `GJ_Control` to $11.6\%$ in `GJ_Treatment`.
-* **`Bacteroidia`:** Mirrors phylum-level Bacteroidota trends, representing $13.8\%\text{--}17.3\%$ of reads across groups.
-* **`Actinobacteria`:** Accounts for $7.8\%\text{--}11.9\%$ of community abundance, exhibiting highest baseline dominance in `GJ_Control` ($11.9\%$) before stabilizing at $8.8\%$ in `GJ_Treatment`.
-* **`Bacilli` Contraction:** Displays selective suppression under soil treatments, declining from $8.0\%$ in `GB_Control` to $5.2\%$ in `GB_Treatment`, and from $7.9\%$ in `GJ_Control` to $5.4\%$ in `GJ_Treatment`.
-* **Unassigned Rare Fraction:** The `Other` class category expands from $\sim 15.5\%$ in uninoculated peat controls to $> 18.0\%$ in both soil treatments.
-
----
-
-## 4. Order-Level Stratification & Expanded Lineage Profiling
-
-![Global Order-Level Relative Abundance](../assets/071_16S_Relative_Abundance(Order).png)
-
-### Four-Group Order Landscape
-At the order level, the rhizosphere partitions into specialized functional groups:
-* **`Rhizobiales`:** The dominant bacterial order across all four conditions, maintaining $6.8\%\text{--}7.9\%$ relative abundance in uninoculated controls and expanding slightly to $7.8\%\text{--}8.2\%$ in treated rhizospheres.
-* **`Chitinophagales`:** Represents $6.1\%\text{--}6.9\%$ of total reads across conditions, supporting chitinolytic degradation in the root zone.
-* **`Burkholderiales`:** Represents the primary betaproteobacterial lineage, stable at $5.8\%\text{--}6.5\%$.
-* **`Bacillales`:** Reflects class-level Bacilli dynamics, dropping from $6.2\%$ in controls to $4.1\%$ in treatments.
-* **Dominance Dilution:** In the global 4-group panel, the top 12 orders account for $\sim 50\%$ of reads in controls, whereas the `Other` fraction expands to $52.1\%$ in `GB_Treatment` and $50.8\%$ in `GJ_Treatment`.
+* Compared with their controls, both treated groups had less Firmicutes (GB 8.7 → 4.2%; GJ 6.0 → 4.6%) and more Acidobacteriota (GB 1.6 → 3.3%; GJ 1.3 → 4.3%) and Chloroflexi (GB 2.9 → 3.7%; GJ 1.8 → 2.9%).
+* Proteobacteria were higher in `GB_Treatment` than in `GB_Control` (29.6 vs 26.0%) but similar in the two GJ groups (29.5 vs 28.9%).
+* In GJ, Planctomycetota (9.5 → 7.7%) and Verrucomicrobiota (8.2 → 6.9%) were lower and Patescibacteria (6.2 → 8.5%) higher in the treated group. In GB, Patescibacteria were lower (7.7 → 6.7%).
+* "Other" was 5.5–6.1% in all groups.
 
 ---
 
-### Lineage-Specific Order Contrasts (Expanded Top Rankings)
+## 3. Class
 
-To capture fine-scale ecological turnover, order-level agglomeration was expanded to include the top 20 orders within each geographic lineage.
+![Class, four groups](../assets/070_16S_Relative_Abundance(Class).png)
 
-![GB Lineage Order-Level Relative Abundance](../assets/072_16S_GB_Relative_Abundance(Order).png)
+| Class (%) | GB_Control | GB_Treatment | GJ_Control | GJ_Treatment |
+| :--- | ---: | ---: | ---: | ---: |
+| Alphaproteobacteria | 17.8 | 19.6 | 19.9 | 19.1 |
+| Bacteroidia | 14.4 | 14.6 | 17.4 | 15.2 |
+| Gammaproteobacteria | 8.1 | 9.9 | 9.6 | 9.8 |
+| Actinobacteria | 7.6 | 7.3 | 10.1 | 8.7 |
+| Verrucomicrobiae | 7.0 | 7.4 | 7.4 | 5.6 |
+| Bacilli | 8.7 | 4.2 | 6.0 | 4.6 |
+| Planctomycetes | 6.6 | 5.1 | 6.6 | 4.1 |
+| Parcubacteria | 3.7 | 3.8 | 2.6 | 4.7 |
+| Phycisphaerae | 3.2 | 3.7 | 2.9 | 3.6 |
+| Saccharimonadia | 2.7 | 2.5 | 3.5 | 3.0 |
+| Polyangia | 2.6 | 2.7 | 1.4 | 2.6 |
+| Chlamydiae | 1.8 | 2.7 | 0.8 | 1.3 |
+| Other | 15.7 | 16.6 | 11.7 | 17.7 |
 
-![GJ Lineage Order-Level Relative Abundance](../assets/073_16S_GJ_Relative_Abundance(Order).png)
-
-* **Gijang B Specific Succession (Figure 072):**
-  * `Rhizobiales` expands from $6.8\%$ to $8.2\%$ in `GB_Treatment`.
-  * `Chitinophagales` increases from $5.5\%$ to $6.4\%$.
-  * Specialized soil orders emerge in `GB_Treatment`, including `Micropepsales` ($1.8\% \to 2.4\%$), `Xanthomonadales` ($1.6\% \to 2.1\%$), and `Streptomycetales` ($1.2\% \to 1.8\%$).
-  * The top 20 orders account for $64.4\%$ in `GB_Control` and $64.6\%$ in `GB_Treatment`, with `Other` remaining steady at $\sim 35.5\%$.
-* **Gyeongju Specific Succession (Figure 073):**
-  * `GJ_Treatment` exhibits distinct order recruitment: `Sphingobacteriales` ($6.8\% \to 7.2\%$), `Sphingomonadales` ($3.9\% \to 4.6\%$), and `Planctomycetales` ($2.0\% \to 2.6\%$).
-  * Several orders appear exclusively among top rankings in the Gyeongju lineage: `Gemmatales`, `Candidatus Kaiserbacteria` (Patescibacteria clade), and `Streptosporangiales`.
-  * The expanded top 20 orders encompass $72.1\%$ of reads in `GJ_Control` but contract to $61.8\%$ in `GJ_Treatment`, with the `Other` pool expanding from $27.9\%$ to **$38.2\%$**. This indicates that GJ soil introduces an exceptionally diverse, low-abundance order-level tail.
-
----
-
-## 5. Family-Level Composition & Rare Biosphere Dilution
-
-![Global Family-Level Relative Abundance](../assets/074_16S_Relative_Abundance(Family).png)
-
-### Family-Level Turnover & Dominance Breakdown
-Agglomerating ASVs to the Family level reveals that rhizosphere remodeling is driven by cumulative shifts across dozens of specialized families rather than monoculture blooms:
-* **Top Identified Families:**
-  * **`Chitinophagaceae`:** Consistently the most abundant family ($5.2\%\text{--}6.1\%$).
-  * **`Sphingobacteriaceae`:** Accounts for $4.1\%\text{--}6.2\%$, showing highest representation in `GJ_Control` ($6.2\%$).
-  * **`Bacillaceae`:** Contracts from $4.8\%$ in controls to $3.1\%$ in treatments.
-  * **`Opitutaceae`:** Stable across conditions at $3.2\%\text{--}3.8\%$.
-  * **`Sphingomonadaceae`:** Accounts for $3.2\%\text{--}4.4\%$, enriched in `GJ_Treatment` ($4.4\%$).
-  * **Secondary Families:** `Caulobacteraceae` ($2.4\%\text{--}2.9\%$), `Micropepsaceae` ($2.1\%\text{--}2.7\%$), `Flavobacteriaceae` ($1.8\%\text{--}2.3\%$), `Oxalobacteraceae` ($1.6\%\text{--}2.1\%$), `Nocardioidaceae` ($1.4\%\text{--}1.9\%$), `Rhizobiaceae` ($1.2\%\text{--}1.6\%$), and `Xanthobacteraceae` ($1.1\%\text{--}1.5\%$).
-
-### Quantitative Dominance Dilution
-The expansion of unclassified and low-abundance families highlights the core ecological mechanism of soil suspension inoculation:
-* In `GB_Control` and `GJ_Control`, the top 12 families represent **$37.1\%$ and $42.8\%$** of total community abundance, leaving the `Other` fraction at $62.9\%$ and $57.2\%$.
-* In `GB_Treatment` and `GJ_Treatment`, the cumulative abundance of these top 12 families contracts to **$32.4\%$ and $35.1\%$**, driving the `Other` fraction up to **$67.6\%$ and $64.9\%$**.
+* Bacilli were lower in both treated groups, in line with Firmicutes.
+* Gammaproteobacteria were higher in `GB_Treatment` than in `GB_Control` (9.9 vs 8.1%) and similar in the two GJ groups.
+* "Other" (classes outside the top 12) was larger in the treated groups (GB 15.7 → 16.6%; GJ 11.7 → 17.7%).
 
 ---
 
-## 6. Genus-Level Resolution & Fine-Scale Rare Biosphere Influx
+## 4. Order
 
-Agglomerating counts to the Genus rank provides the finest taxonomic resolution achievable from short-read 16S V3–V4 amplicons, isolating candidate genera responsible for treatment divergence.
+![Order, four groups](../assets/071_16S_Relative_Abundance(Order).png)
 
-![Global Genus-Level Relative Abundance](../assets/075_16S_Relative_Abundance(Genus).png)
+| Order (%) | GB_Control | GB_Treatment | GJ_Control | GJ_Treatment |
+| :--- | ---: | ---: | ---: | ---: |
+| Rhizobiales | 6.5 | 8.1 | 7.3 | 7.3 |
+| Chitinophagales | 5.8 | 6.4 | 5.6 | 5.9 |
+| Burkholderiales | 5.1 | 5.5 | 6.4 | 6.5 |
+| Bacillales | 6.6 | 3.3 | 4.6 | 3.6 |
+| Sphingobacteriales | 4.0 | 3.0 | 7.0 | 4.7 |
+| Sphingomonadales | 2.6 | 3.2 | 3.5 | 4.6 |
+| Other | 50.5 | 52.1 | 44.9 | 50.5 |
 
-### Global Four-Group Genus Patterns
-Evaluating the top 12 genera across all 110 libraries illustrates the high background diversity of the rhizosphere:
-* **Uncultured Reservoir:** Genera lacking cultured representatives (`uncultured`) constitute the single largest assigned fraction, occupying $10.4\%\text{--}13.5\%$ across all treatments.
-* **Core Colonizers:** Key genera present across all conditions include *Mucilaginibacter* ($2.3\%\text{--}3.5\%$), *Flavobacterium* ($2.1\%\text{--}2.8\%$), *Nocardioides* ($1.6\%\text{--}2.4\%$), *Massilia* ($1.7\%\text{--}2.2\%$), *WD2101_soil_group* ($1.5\%\text{--}2.1\%$), *LWQ8* ($1.3\%\text{--}1.8\%$), *Asticcacaulis* ($1.2\%\text{--}1.6\%$), *BIrii41* ($1.1\%\text{--}1.5\%$), *Streptomyces* ($1.0\%\text{--}1.5\%$), and *Candidatus Kaiserbacteria* ($0.9\%\text{--}1.4\%$).
-* **Peat Resident Suppression (*Bacillus*):** Corroborating Bacillales trends, *Bacillus* accounts for $4.9\%$ in `GB_Control` and $3.8\%$ in `GJ_Control`, but drops significantly to $2.1\%$ in `GB_Treatment` and $1.4\%$ in `GJ_Treatment`.
-* **Global Dominance Contraction:** The top 12 genera account for **$32.9\%$ in `GB_Control`** and **$33.7\%$ in `GJ_Control`**. Following soil inoculation, they contract to **$29.6\%$ in `GB_Treatment`** and **$30.4\%$ in `GJ_Treatment`**, leaving approximately **$70\%$ of the community to the unassigned `Other` pool**.
+![Order, GB (top 20)](../assets/072_16S_GB_Relative_Abundance(Order).png)
 
----
+![Order, GJ (top 20)](../assets/073_16S_GJ_Relative_Abundance(Order).png)
 
-### Expanded Lineage-Specific Genus Succession (Top ~30 Genera)
-
-To decouple lineage-specific recruitment from broad suppression trends, genus profiles were expanded to encompass the top ~30 genera within each regional contrast.
-
-![GB Lineage Genus-Level Relative Abundance](../assets/076_16S_GB_Relative_Abundance(Genus).png)
-
-![GJ Lineage Genus-Level Relative Abundance](../assets/077_16S_GJ_Relative_Abundance(Genus).png)
-
-#### 1. Gijang B Genus Dynamics (Figure 076)
-* **Selective Influx:** Soil inoculation promotes specific plant growth-promoting and oligotrophic clades:
-  * *WD2101_soil_group* ($1.8\% \to 2.2\%$), *Parcubacteria* ($0.9\% \to 1.5\%$), and *Chitinophaga* ($1.1\% \to 1.4\%$).
-  * Emergence of low-abundance field clades: *Candidatus Adlerbacteria*, *Burkholderia-Caballeronia-Paraburkholderia*, *Sphingobium*, and *Allorhizobium-Neorhizobium-Pararhizobium-Rhizobium*.
-* **Cumulative Metric:** The expanded top 30 genera account for $49.2\%$ of total reads in `GB_Control` and contract to $45.6\%$ in `GB_Treatment`, expanding the `Other` tail from $50.8\%$ to **$54.4\%$**.
-
-#### 2. Gyeongju Genus Dynamics (Figure 077)
-* **Lineage-Specific Turnover:** Gyeongju inoculation remodels a distinct set of genera:
-  * Suppression of baseline peat copiotrophs: *Mucilaginibacter* contracts from $4.8\%$ to $2.8\%$; *Flavobacterium* drops from $3.2\%$ to $2.2\%$; *Nocardioides* drops from $2.8\%$ to $1.8\%$.
-  * Enrichment of environmental soil genera: *Sphingobium* ($1.4\% \to 1.9\%$), *WD2101_soil_group* ($1.5\% \to 1.9\%$), *Gemmata* ($1.2\% \to 1.6\%$), and *Rugosimonospora*.
-  * Exclusive detection among top taxa: *Abditibacterium*, *SH-PL14*, *Schlesneria*, *Gemmatimonas*, and *Taibaiella*.
-* **Pronounced Dominance Dilution:** In `GJ_Control`, the top 30 genera represent $53.6\%$ of the library (`Other` = $46.4\%$). In `GJ_Treatment`, the top 30 genera contract sharply to $46.1\%$, pushing the rare biosphere (`Other`) to **$53.9\%$**.
+* **GB (top 20 orders).** The top 20 covered 64.5% (control) and 64.6% (treated) of reads. Rhizobiales (6.5 → 8.1%), Cytophagales (1.7 → 2.6%), Chlamydiales (1.8 → 2.7%) and Xanthomonadales (1.4 → 2.1%) were higher in `GB_Treatment`; Bacillales (6.6 → 3.3%), Sphingobacteriales (4.0 → 3.0%) and Propionibacteriales (2.3 → 1.5%) were lower.
+* **GJ (top 20 orders).** The top 20 covered 72.1% (control) and 62.1% (treated) of reads. Sphingobacteriales (7.0 → 4.7%), Micropepsales (4.1 → 2.6%), Planctomycetales (3.1 → 1.5%) and Gemmatales (2.0 → 0.8%) were lower in `GJ_Treatment`; Sphingomonadales (3.5 → 4.6%) and Polyangiales (1.0 → 1.9%) were higher.
+* Gemmatales, *Candidatus* Kaiserbacteria, Streptosporangiales and Verrucomicrobiales are among the GJ top 20 but not the GB top 20. Chlamydiales, Cytophagales, Pirellulales and Xanthomonadales are among the GB top 20 only.
 
 ---
 
-## 7. Synthesis: The Rare Biosphere Mechanism of Soil Conditioning
+## 5. Family
 
-Tracking community succession across Phylum, Class, Order, Family, and Genus levels reveals a consistent ecological mechanism:
+![Family, four groups](../assets/074_16S_Relative_Abundance(Family).png)
 
-$$\text{Peat Baseline (Low Diversity, High Dominance)} \xrightarrow{+\text{ Soil Suspension}} \text{Rhizosphere State (High Diversity, High Evenness)}$$
+| Family (%) | GB_Control | GB_Treatment | GJ_Control | GJ_Treatment |
+| :--- | ---: | ---: | ---: | ---: |
+| Chitinophagaceae | 5.6 | 6.1 | 5.2 | 5.6 |
+| Sphingobacteriaceae | 3.5 | 2.2 | 6.4 | 3.7 |
+| Bacillaceae | 5.3 | 2.2 | 3.3 | 2.6 |
+| Opitutaceae | 3.9 | 4.0 | 3.3 | 2.3 |
+| Sphingomonadaceae | 2.6 | 3.2 | 3.5 | 4.6 |
+| Nocardioidaceae | 2.3 | 1.4 | 3.0 | 1.9 |
+| Top 12 families combined | 37.4 | 32.7 | 42.9 | 35.6 |
+| Other | 62.6 | 67.3 | 57.1 | 64.4 |
 
-1. **Absence of Monoculture Blooms:** Inoculation does not trigger runaway dominance by any single opportunistic genus. The relative abundance of the top genus (*uncultured*) remains steady at $\sim 11\text{--}13\%$, while common copiotrophic peat colonizers (*Bacillus*, *Mucilaginibacter*) contract.
-2. **Cumulative Rare-Biosphere Expansion:** At every taxonomic tier, the proportion of reads assigned to the dominant top clades declines, accompanied by a reciprocal expansion of the `Other` category ($+3\%\text{--}+8\%$ depending on rank).
-3. **Lineage-Specific Taxa Recruitment:** The species pools differentiating Gijang B (accelerated ripening) from Gyeongju (increased vegetative biomass) reside primarily within low-abundance, specialized genera (*Parcubacteria*, *Acidibacter*, *Burkholderia* in GB; *Sphingobium*, *Gemmata*, *Porphyrobacter*, *Gemmatimonas* in GJ). These taxa stably integrate into the root surface, driving overall community divergence and establishing the distinct microbial equilibria evaluated in downstream functional profiling.
+* The 12 most abundant families covered less of the community in the treated groups (GB 37.4 → 32.7%; GJ 42.9 → 35.6%).
+* Bacillaceae, Sphingobacteriaceae and Nocardioidaceae were lower in both treated groups; Sphingomonadaceae were higher.
+
+---
+
+## 6. Genus
+
+![Genus, four groups](../assets/075_16S_Relative_Abundance(Genus).png)
+
+| Genus (%) | GB_Control | GB_Treatment | GJ_Control | GJ_Treatment |
+| :--- | ---: | ---: | ---: | ---: |
+| uncultured | 11.4 | 13.8 | 10.0 | 10.6 |
+| *Bacillus* | 4.6 | 2.0 | 1.4 | 1.3 |
+| *Mucilaginibacter* | 2.2 | 1.5 | 5.1 | 2.9 |
+| *Flavobacterium* | 2.7 | 2.2 | 3.4 | 2.4 |
+| *Nocardioides* | 2.3 | 1.4 | 3.0 | 1.8 |
+| *Massilia* | 1.7 | 1.0 | 2.5 | 2.2 |
+| WD2101_soil_group | 1.8 | 2.1 | 1.0 | 2.1 |
+| Top 12 genera combined | 33.0 | 29.8 | 34.3 | 30.4 |
+| Other | 67.0 | 70.2 | 65.7 | 69.6 |
+
+* "uncultured" was the largest category in all groups (10.0–13.8%); see Methods for why it is not a single genus. No named genus exceeded 5.1%.
+* *Bacillus* was lower in `GB_Treatment` than in `GB_Control` (2.0 vs 4.6%). It was low in both GJ groups (1.4 and 1.3%).
+* *Mucilaginibacter*, *Flavobacterium* and *Nocardioides* were lower in both treated groups. WD2101_soil_group was higher in both.
+
+![Genus, GB (top 30)](../assets/076_16S_GB_Relative_Abundance(Genus).png)
+
+![Genus, GJ (top 30)](../assets/077_16S_GJ_Relative_Abundance(Genus).png)
+
+* **GB (top 30 genera).** The top 30 covered 49.2% (control) and 45.3% (treated) of reads. *Bacillus* (4.6 → 2.0%), *Gemmata* (1.5 → 0.5%) and *Paenibacillus* (1.0 → 0.5%) were lower in `GB_Treatment`; *Sphingobium* (0.5 → 1.0%), *Candidatus* Adlerbacteria (0.7 → 1.0%), *Opitutus* (0.9 → 1.4%) and WD2101_soil_group (1.8 → 2.1%) were higher.
+* **GJ (top 30 genera).** The top 30 covered 53.0% (control) and 46.1% (treated) of reads. *Mucilaginibacter* (5.1 → 2.9%), *Flavobacterium* (3.4 → 2.4%), *Nocardioides* (3.0 → 1.8%) and *Gemmata* (1.6 → 0.6%) were lower in `GJ_Treatment`; *Sphingobium* (1.1 → 1.9%), WD2101_soil_group (1.0 → 2.1%) and BIrii41 (0.8 → 1.5%) were higher.
+* *Abditibacterium*, SH-PL14, *Schlesneria*, *Gemmatimonas*, *Taibaiella*, *Rugosimonospora* and *Micropepsis* are among the GJ top 30 only. *Caulobacter*, *Terrimonas*, *Paenibacillus*, *Edaphobaculum*, *Planctomicrobium*, *Burkholderia-Caballeronia-Paraburkholderia* and Parcubacteria are among the GB top 30 only. Being outside one experiment's top 30 does not mean that a genus was absent there.
+
+---
+
+## 7. Summary
+
+* Firmicutes (Bacilli, Bacillales, Bacillaceae) were lower in both treated groups than in their controls. At genus level, the drop was seen for *Bacillus* in GB only.
+* Acidobacteriota and Chloroflexi were higher in both treated groups.
+* From class to genus level, the most abundant taxa made up a smaller share of reads in the treated groups, and "Other" was larger. The exceptions are the phylum plots and the GB top-20 order plot, where "Other" did not change. This is consistent with the higher number of observed ASVs in treated samples (2026-08-10_01). However, "Other" also contains reads without a name at that rank, and the scripts do not separate the two.
+* These are descriptive group means of an unbalanced design (33 + 33 GB samples from three batches, 22 + 22 GJ samples from two batches).

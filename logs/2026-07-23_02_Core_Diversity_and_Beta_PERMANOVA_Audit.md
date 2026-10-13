@@ -1,102 +1,107 @@
-# Rarefaction Normalization, Multi-Metric Beta Diversity, and Permutational Multivariate Audit of Treatment vs. Batch Heterogeneity
-**Date:** July 23, 2026  
-**Project:** 04_MicroTom_P_Rhizosphere_Amplicon_Analysis  
-**Target Assays:** Bacterial 16S rRNA (V3–V4) & Fungal ITS2  
-**Input Artifacts:** `05_taxonomy_16S/table_16S_clean.qza`, `05_taxonomy_16S/table_16S_standard.qza`, `06_phylo_16S/rooted_tree_16S.qza`, `05_taxonomy_ITS/table_ITS_clean.qza`, `05_taxonomy_ITS/table_ITS_standard.qza`, `metadata_P_generation.tsv`  
-**Output Artifacts:** `07_diversity_16S/full/*`, `07_diversity_16S/standard/*`, `07_diversity_ITS/full/*`, `07_diversity_ITS/standard/*`, `07_diversity_16S/permanova_audit/*`, `07_diversity_ITS/batch_audit/*`  
+# Core Diversity Metrics and Bray–Curtis Group Comparisons
+
+**Date:** 2026-07-23
+**Stage:** rarefaction and core diversity metrics; QIIME 2 PERMANOVA by treatment group and by sample set; inspection of the x/y samples
+**Cohort:** six batches; full set N = 134, standard set N = 127 (original labels)
+**Script:** `modules/05_phylogeny_and_diversity.sh`
+**Input:** `05_taxonomy_16S/table_16S_clean.qza`, `05_taxonomy_16S/table_16S_standard.qza`, `06_phylo_16S/rooted_tree_16S.qza`, `05_taxonomy_ITS/table_ITS_clean.qza`, `05_taxonomy_ITS/table_ITS_standard.qza`, `metadata_P_generation.tsv`
+**Output:** `07_diversity_16S/full/*`, `07_diversity_16S/standard/*`, `07_diversity_ITS/full/*`, `07_diversity_ITS/standard/*`, `07_diversity_16S/permanova_audit/*`, `07_diversity_ITS/PERMANOVA_ITS_*.qzv`, `07_diversity_ITS/batch_audit/*`
 
 ---
 
-## 1. Methodological & Theoretical Rationale
+## 1. Rarefaction and core metrics
 
-### A. Rarefaction Standardization and Depth Justification
-Amplicon count matrices are compositional and subject to library size artifacts driven by non-biological factors (e.g., differential PCR amplification efficiencies, fluorophore degradation, flow cell clustering variations).
-* **Distance Matrix Sensitivity:** Beta-diversity distance metrics—particularly Jaccard (binary presence/absence) and unweighted UniFrac—are sensitive to sequencing depth. Artifactually high library depths uncover deeper rare-biosphere singletons, which can artificially inflate ecological distance between identical communities.
-* **16S Sampling Depth ($27,000$ reads):** 
-  Based on post-merging diagnostic distributions where the absolute minimum library depth reached $27,915$ reads (`table_16S_merged.qzv`), a rarefaction threshold of $27,000$ reads samples the community near the empirical lower bound. This retains **100% of biological replicates** ($N=134$) while eliminating library size variation as a confounding factor.
-* **ITS2 Sampling Depth ($8,600$ reads):** 
-  Fungal libraries exhibit wider library size variance and lower baseline amplicon yields than bacterial assays. Setting depth to $8,600$ reads captures the inflection plateau of fungal species saturation curves across all groups while preventing the exclusion of lower-yield rhizosphere samples.
+```bash
+qiime diversity core-metrics-phylogenetic \
+  --i-phylogeny 06_phylo_16S/rooted_tree_16S.qza \
+  --i-table 05_taxonomy_16S/table_16S_clean.qza \
+  --p-sampling-depth 27000 \
+  --m-metadata-file metadata_P_generation.tsv \
+  --output-dir 07_diversity_16S/full
 
-### B. Ecological Metric Stratification: 16S vs. ITS2
-* **Bacterial 16S (Phylogenetic + Non-Phylogenetic Pipeline):**
-  * **Qualitative / Phylogenetic:** Unweighted UniFrac measures the fraction of unique branch length within the rooted phylogenetic tree, prioritizing lineage presence/absence across regional soil treatments.
-  * **Quantitative / Phylogenetic:** Weighted UniFrac weights tree branches by the relative abundance of ASVs, prioritizing shifts in dominant microbial clades.
-  * **Non-Phylogenetic Baselines:** Bray-Curtis (abundance-weighted compositional dissimilarity) and Jaccard (shared feature presence/absence) provide reference distance matrices.
-* **Fungal ITS2 (Exclusively Non-Phylogenetic Pipeline):**
-  * Because fungal ITS sequences cannot be reliably aligned globally across divergent phyla, phylogenetic branch lengths are biologically uninterpretable. Diversity is evaluated strictly using Bray-Curtis and Jaccard distance spaces.
+qiime diversity core-metrics \
+  --i-table 05_taxonomy_ITS/table_ITS_clean.qza \
+  --p-sampling-depth 8600 \
+  --m-metadata-file metadata_P_generation.tsv \
+  --output-dir 07_diversity_ITS/full
+```
 
----
+The same commands were run on the standard tables (output folders `standard/`).
 
-## 2. Statistical Framework: PERMANOVA Modeling
+* **16S depth, 27,000 reads:** just below the smallest library in the merged table (27,915 reads; 2026-07-23_01). All 134 libraries were retained (group sizes in Figures 017 and 029 add up to 134).
+* **ITS2 depth, 8,600 reads:** the logs do not record how this depth was chosen or how many ITS2 libraries were retained.
+* **16S outputs:** observed features, Shannon, Pielou's evenness and Faith's PD; Bray–Curtis, Jaccard, unweighted and weighted UniFrac distances, with PCoA results and Emperor plots.
+* **ITS2 outputs:** observed features, Shannon and Pielou's evenness; Bray–Curtis and Jaccard distances. No phylogenetic metrics, because no ITS2 tree was built.
 
-Permutational Multivariate Analysis of Variance (PERMANOVA) tests whether community centroids differ significantly between metadata classes (Treatment Group, Sequencing Batch) within a chosen distance space.
-
-### Algorithmic Mechanism
-The pseudo-$F$ test statistic is computed directly from the distance matrix:
-
-$$F = \frac{SS_A / (a - 1)}{SS_W / (N - a)}$$
-
-Where $SS_A$ represents between-group sum of squared distances, $SS_W$ represents within-group sum of squared distances, $a$ is the number of treatment levels, and $N$ is total sample count. Statistical significance is derived non-parametrically through 999 random permutations of group labels, avoiding multivariate normality assumptions.
+Rarefaction removes differences in library size before diversity estimation. Presence/absence metrics (Jaccard, unweighted UniFrac) are the most sensitive to library size.
 
 ---
 
-## 3. Audit of the "Extra" ($x/y$) Cohort
+## 2. PERMANOVA in QIIME 2
 
-Pairwise Bray-Curtis distance distributions were evaluated to determine whether ambiguous samples from cohort `GJ3` bearing suffixes `x` and `y` represent experimental outliers, technical artifacts, or mislabeled treatments.
+`qiime diversity beta-group-significance` (PERMANOVA, 999 permutations by default) was run on the Bray–Curtis matrices of the full and standard sets, with two grouping columns:
 
-![Distances to GJ3_Extra across Batches](../assets/010_PERMANOVA_batch_full.qzv(Extra).png)
+* `Treatment_Group` (`GB_Control`, `GB_Treatment`, `GJ_Control`, `GJ_Treatment`, and `*_Extra` for the x/y samples);
+* `Sequencing_Batch`, which holds the sample set (`B1`, `M1`, …, `GJ3_Extra`; see 2026-07-23_01).
 
-![Distances to GJ_Treatment_Extra across Treatment Groups](../assets/013_PERMANOVA_treatment_full.qzv(Extra).png)
+```bash
+qiime diversity beta-group-significance \
+  --i-distance-matrix 07_diversity_16S/full/bray_curtis_distance_matrix.qza \
+  --m-metadata-file metadata_P_generation.tsv \
+  --m-metadata-column Treatment_Group \
+  --o-visualization 07_diversity_16S/permanova_audit/PERMANOVA_treatment_full.qzv
+```
 
-### Key Diagnostic Observations
-1. **Batch Affinity Profile (Figure 010):** In the pairwise batch distance matrix, distances from `GJ3_Extra` ($N=7$) to unrelated batches (`B1`–`B4`, `M1`–`M4`, `jM2`–`jM3`, each $n=77$) are uniformly high, with median Bray-Curtis distances exceeding $0.75\text{--}0.85$.
-2. **Bimodal Intra-Set Divergence:** Within the synchronous `GJ` harvest cohort, `GJ3_Extra` exhibits low pairwise distances exclusively to `J4` (median $\sim 0.51$, $n=42$, with samples reaching down to $0.32$) and `jM4` (median $\sim 0.50$, $n=77$, with samples reaching down to $0.31$).
-3. **Cross-Treatment Infiltration (Figure 013):** When examining distance to `GJ_Treatment_Extra`, distances to `GB` groups are consistently elevated ($\sim 0.80$, $n=231$), while distances to both `GJ_Control` ($n=231$) and `GJ_Treatment` ($n=196$) exhibit a broad, bimodal distribution with lower whiskers reaching $\sim 0.32$.
-
-### Diagnostic Verdict
-These distribution patterns confirm that the $x/y$ samples do not represent novel environmental phenotypes or systemic contamination. Instead, they are an unindexed mixture of authentic **GJ Treatment** and **GJ Control (MES)** samples where replicate IDs were swapped during sampling. 
-
-Retaining these mislabeled samples within primary experimental comparisons would blur group centroids, inflate within-group variance ($SS_W$), and reduce statistical power. Stratifying the dataset into `Standard` ($N = 127$; strict, verified replicates only) vs. `Full` ($N = 134$; complete collection for sensitivity auditing) isolates this classification ambiguity.
-
----
-
-## 4. Batch Effect Evaluation (Technical Variance vs. Biological Signal)
-
-To determine the magnitude of run-to-run variation across the 6 independent experimental sets, pairwise distances relative to reference batch `B1` were profiled across both cohort configurations.
-
-![Distances to B1 across Batches (Full Dataset)](../assets/009_PERMANOVA_batch_full.qzv.png)
-
-![Distances to B1 across Batches (Standard Dataset)](../assets/011_PERMANOVA_batch_standard.qzv.png)
-
-### Comparative Analysis
-* **Intra-Batch Baseline:** Within-batch variation (`B1` to `B1`, $n=55$) displays a tight median distance of $0.47$, establishing the technical baseline for biological replicates within a single sequencing run.
-* **Biological Condition Dominance:** Between-batch distances to other Gijang B treated sets (`B3`, `B4`, $n=121$) remain significantly lower (medians $0.63$ and $0.68$) than distances to control or alternative soil treatments.
-* **Environmental Divergence:** Distances from `B1` to uninoculated peat controls (`M1`–`M4`, `jM2`–`jM4`, $n=121$) and Gyeongju treatments (`J2`–`J4`) plateau between $0.75$ and $0.85$.
-* **Standard Dataset Cleansing:** Removing `GJ3_Extra` removes anomalous inter-batch variance outliers from the distribution while preserving the underlying biological gradient. The remaining batch-level shifts confirm that downstream differential abundance and phenotypic regression must incorporate `Sequencing_Batch` as a blocking covariate or random effect.
+The figures below are the distance box plots from these visualizations; *n* is the number of sample pairs. Medians are read from the plots.
 
 ---
 
-## 5. Primary Treatment Contrasts: Standard vs. Full Datasets
+## 3. The x/y samples
 
-Evaluating distances relative to `GB_Control` confirms the stability of core treatment separations.
+![Bray–Curtis distances to GJ3_Extra, by sample set (full set)](../assets/010_PERMANOVA_batch_full.qzv(Extra).png)
 
-![Distances to GB_Control (Full Dataset)](../assets/012_PERMANOVA_treatment_full.qzv.png)
+![Bray–Curtis distances to GJ_Treatment_Extra, by treatment group (full set)](../assets/013_PERMANOVA_treatment_full.qzv(Extra).png)
 
-![Distances to GB_Control (Standard Dataset)](../assets/014_PERMANOVA_treatment_standard.qzv.png)
+* **By sample set (Figure 010).** Within the seven x/y samples the median distance is about 0.54 (*n* = 21). They are closest to the other GJ3 sets, `J4` (median about 0.51, *n* = 42, minimum about 0.33) and `jM4` (about 0.50, *n* = 77, minimum about 0.32). Distances to all other sets are higher (medians about 0.63–0.83; lowest to `M4`, highest to `B1`).
+* **By treatment group (Figure 013).** Distances from the x/y samples to the GB groups are high (medians about 0.79–0.80, *n* = 231 each). Distances to `GJ_Control` (*n* = 231) and `GJ_Treatment` (*n* = 196) are lower and spread widely, with lower whiskers near 0.32–0.36.
 
-### Contrast Insights
-* **Within-Control Baseline:** Intra-group distances among `GB_Control` replicates ($n=528$) center at median $0.71$, reflecting natural baseline variation within peat plug microbial communities under MES buffer irrigation.
-* **Soil Inoculation Impact:** Exposure to `GB_Treatment` shifts communities into a distinct compositional state (median distance $\sim 0.79$, $n=1089$, $p < 0.001$).
-* **Cross-Regional Separation:** Gyeongju treatment (`GJ_Treatment`, $n=924$) maintains the greatest ecological divergence from `GB_Control` (median distance $> 0.80$).
-* **Identification of Latent Set 4 Outliers:** In the Standard dataset (Figure 014), removing `GJ_Treatment_Extra` eliminates the ambiguous extra column. However, `GJ_Treatment` ($n=924$) continues to exhibit low-distance outlier points extending down to $0.45\text{--}0.60$ relative to `GB_Control`. This persistent bimodal artifact provides the direct empirical evidence that mislabeling was not restricted to the extra tubes, but persisted within the standard tubes of Set 4 (`J4`/`jM4`).
+These patterns are consistent with the x/y samples being GJ3 samples from both the treated and the control set, rather than a separate kind of sample. Because their group could not be assigned from the records, they were kept out of the standard set (N = 127) and analysed only in the full set (N = 134).
 
 ---
 
-## 6. Diversity Processing Registry
+## 4. Differences between sample sets
 
-| Assay | Cohort | Sampling Depth | Primary Distance Matrices | PERMANOVA Covariates Evaluated | Verified Status |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **16S** | Full ($N=134$) | 27,000 | Weighted/Unweighted UniFrac, Bray-Curtis, Jaccard | `Treatment_Group`, `Sequencing_Batch` | Completed (Sensitivity Baseline) |
-| **16S** | Standard ($N=127$) | 27,000 | Weighted/Unweighted UniFrac, Bray-Curtis, Jaccard | `Treatment_Group`, `Sequencing_Batch` | Validated (Curated Baseline) |
-| **ITS2** | Full ($N=134$) | 8,600 | Bray-Curtis, Jaccard | `Treatment_Group`, `Sequencing_Batch` | Completed (Sensitivity Baseline) |
-| **ITS2** | Standard ($N=127$) | 8,600 | Bray-Curtis, Jaccard | `Treatment_Group`, `Sequencing_Batch` | Validated (Curated Baseline) |
+![Bray–Curtis distances to B1 (full set)](../assets/009_PERMANOVA_batch_full.qzv.png)
+
+![Bray–Curtis distances to B1 (standard set)](../assets/011_PERMANOVA_batch_standard.qzv.png)
+
+* Within `B1` (GB soil, set 1): median about 0.47 (*n* = 55).
+* To the other GB-treated sets: `B3` about 0.63 and `B4` about 0.68 (*n* = 121 each).
+* To the GJ-treated sets: `J2` about 0.77, `J3` about 0.75, `J4` about 0.84 (*n* = 66).
+* To the control sets: `M1`, from the same batch folder as `B1`, about 0.75; `M3`, `M4`, `jM2`, `jM3` and `jM4` about 0.81–0.83.
+* The standard-set plot (Figure 011) is the same except that `GJ3_Extra` is absent.
+
+GB-treated sets are more similar to each other than to the GJ-treated or control sets. However, distances between GB-treated sets (about 0.63–0.68) are clearly larger than those within `B1` (0.47). This points to variation between sets or batches. The later LinDA models (2026-07-25_01, 2026-08-24_01) did not include a set or batch term.
+
+---
+
+## 5. Distances to GB_Control
+
+![Bray–Curtis distances to GB_Control (full set)](../assets/012_PERMANOVA_treatment_full.qzv.png)
+
+![Bray–Curtis distances to GB_Control (standard set)](../assets/014_PERMANOVA_treatment_standard.qzv.png)
+
+* Within `GB_Control`: median about 0.71 (*n* = 528).
+* To `GB_Treatment`: about 0.79 (*n* = 1,089); to `GJ_Control`: about 0.75 (*n* = 1,089); to `GJ_Treatment`: about 0.80 (*n* = 924); to `GJ_Treatment_Extra`: about 0.80 (*n* = 231).
+* `GJ_Treatment` has a tail of low distances to `GB_Control` (about 0.45–0.70). The tail remains in the standard set (Figure 014), so it is not caused by the x/y samples. Some samples labelled `GJ_Treatment` therefore look like controls. This was the first indication that labels in GJ set 4 (`J4`, `jM4`) might also be wrong; it was examined in 2026-07-24_02.
+
+---
+
+## 6. Summary of outputs
+
+| Assay | Set | Depth | Distance matrices | PERMANOVA groupings (Bray–Curtis) |
+| :--- | :--- | ---: | :--- | :--- |
+| 16S | full (N = 134) | 27,000 | Bray–Curtis, Jaccard, unweighted and weighted UniFrac | `Treatment_Group`, `Sequencing_Batch` |
+| 16S | standard (N = 127) | 27,000 | same | same |
+| ITS2 | full (N = 134) | 8,600 | Bray–Curtis, Jaccard | same |
+| ITS2 | standard (N = 127) | 8,600 | same | same |

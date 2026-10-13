@@ -1,55 +1,56 @@
-# Ordination-Guided Sample Deconvolution and Forensic Reclassification of GJ Cohort Mislabeling
-**Date:** July 24, 2026  
-**Project:** 04_MicroTom_P_Rhizosphere_Amplicon_Analysis  
-**Target Assays:** Bacterial 16S rRNA (V3–V4)  
-**Platform:** R v4.6.1 (`aarch64-apple-darwin23`, Native ARM64)  
-**Input Artifacts:** `07_diversity_16S/full/*`, `metadata_P_generation.tsv`  
-**Output Artifacts:** `metadata_P_generation_corrected_final.tsv`  
+# Reassignment of GJ3 Sample Labels from PCoA (Exploratory)
+
+**Date:** 2026-07-24
+**Stage:** PCoA-threshold reassignment of the x/y samples and of set-4 outliers; diversity after reassignment
+**Cohort:** six batches, full set (N = 134); GJ samples only for the reassignment step
+**Script:** `modules/07_sample_reclassification.R`
+**Platform:** R 4.6.1 (`aarch64-apple-darwin23`)
+**Input:** `07_diversity_16S/full/*`, `metadata_P_generation.tsv`
+**Output:** `metadata_P_generation_corrected_extra.tsv`, `metadata_P_generation_corrected_final.tsv`
+
+> **Status.** This reassignment was exploratory. The new labels were derived from the same distance matrices that were then used to test group differences, so the PERMANOVA results after reassignment are circular. All GJ3 samples were later removed (final set N = 110; 2026-07-29_01), so no reassigned label is used in the final results.
 
 ---
 
-## 1. Methodological Rationale & Algorithmic Strategy
+## 1. Method
 
-In controlled greenhouse mesocosms, continuous soil suspension treatments drive reproducible taxonomic succession in the rhizosphere. When technical labeling errors occur during physical harvest, the resulting microbial profile does not represent an intermediate biological state; rather, its high-dimensional feature composition clusters deterministically with its true biological treatment centroid.
+1. PCoA (`cmdscale`, k = 2) of the unweighted UniFrac and Jaccard distances among GJ samples only (`GJ_Control`, `GJ_Treatment` and the x/y samples).
+2. A threshold on PCoA 1 at the midpoint between the group means: θ = (mean PCoA 1 of `GJ_Control` + mean PCoA 1 of `GJ_Treatment`) / 2.
+3. A sample lying on the other side of θ from its labelled group was flagged. Labels were changed only when unweighted UniFrac and Jaccard agreed.
 
-To resolve sample identity ambiguities without introducing subjective bias, we implemented an **unsupervised ordination-guided deconvolution pipeline**:
+The method assumes that a mislabelled sample clusters with its true group. The threshold is computed from labelled groups that may themselves contain mislabelled samples.
 
-1. **Orthogonal Axis Decomposition:** Principal Coordinate Analysis (PCoA) across presence-absence ecological distance spaces (Unweighted UniFrac and Jaccard) projects maximal variance between uninoculated peat controls and soil suspension treatments along PCoA Axis 1.
-2. **Centroid Thresholding:** A decision boundary is established at the geographic midpoint between the empirical centroids of verified control and treatment libraries:
-   $$\theta = \frac{\mu_{\text{Control}} + \mu_{\text{Treatment}}}{2}$$
-   where $\mu$ represents the mean coordinate on PCoA 1.
-3. **Multi-Metric Consensus Verification:** A sample is marked for reclassification if and only if its coordinate crosses $\theta$ across multiple orthogonal distance metrics, preventing metric-specific mathematical artifacts from dictating biological reassignment.
+The label changes were made by sample code, so they were applied to both the 16S (`B_`) and the ITS2 (`F_`) samples, based on the 16S ordinations only.
 
 ---
 
-## 2. Phase 1: Extra Sample ($x/y$) Deconvolution & Sample Size Discrepancy
+## 2. Stage 1: the seven x/y samples
 
-Initial inspection of the 7 ambiguous samples bearing terminal suffixes `x` and `y` from cohort `GJ3_Extra` demonstrated clean bimodal partitioning along PCoA Axis 1.
+![x/y samples on PCoA 1, unweighted UniFrac and Jaccard](../assets/023_16S_J(Extra)_Reclassification.png)
 
-![Extra Sample Bifurcation and Reclassification 1](../assets/023_16S_J(Extra)_Reclassification.png)
+PCoA 1 explains 26.7% (unweighted UniFrac) and 18.1% (Jaccard) of the variation among GJ samples.
 
-### Bimodal Partitioning Analysis
-* **Treatment Partition:** Samples `B_J2y`, `B_J5y`, `B_J7x`, and `B_J8x` mapped strictly to the negative coordinate space of PCoA 1 alongside verified `GJ_Treatment` libraries across both Unweighted UniFrac ($26.7\%$ variance explained) and Jaccard ($18.1\%$ variance explained).
-* **Control Partition:** Samples `B_J2x`, `B_J5x`, and `B_J13x` crossed the decision boundary ($\theta$) into positive coordinate space, clustering with `GJ_Control`.
+* `J2y`, `J5y`, `J7x` and `J8x` lie on the `GJ_Treatment` side in both metrics and were assigned to `GJ_Treatment`.
+* `J2x`, `J5x` and `J13x` lie on the `GJ_Control` side in both metrics and were assigned to `GJ_Control`.
+* In the Jaccard ordination, `J2y` and `J5y` lie close to the threshold.
 
-![Reclassification 1 Beta Diversity Overview](../assets/024_16S_Reclassified1_Beta_Diversity.png)
+The two lists are hard-coded in the script (`extra_to_treatment`, `extra_to_control`). They were written to `metadata_P_generation_corrected_extra.tsv`, with `Sample_Type` changed to `Standard`.
 
-![Reclassification 1 Beta Diversity with Extra Marked](../assets/025_16S_Reclassified1_Beta_Diversity.png)
+![Beta diversity after stage 1](../assets/024_16S_Reclassified1_Beta_Diversity.png)
 
-### Structural Imbalance Identified
-Following the initial reclassification of the 7 Extra samples:
-* While ordination trajectories tightened, group sample allocations yielded an unexpected asymmetry: **`GJ_Control (N=36)` vs. `GJ_Treatment (N=32)`**.
-* The balanced experimental design specified 11 biological replicates per experimental set ($3\times 11 = 33$ nominal replicates per condition, plus rescued extras). An excess of controls alongside a deficit of treatments indicated that physical mislabeling was not restricted to the `x`/`y` tubes, but extended systematically into the standard harvest tubes of set 4 (`J4` and `jM4`).
+![Beta diversity after stage 1, reassigned samples marked](../assets/025_16S_Reclassified1_Beta_Diversity.png)
+
+After stage 1, `GJ_Control` had 36 samples and `GJ_Treatment` 32. The design had 11 plants per set and three sets per group (33). This imbalance, and the control-like `GJ_Treatment` samples seen in 2026-07-23_02 (Figure 014), suggested that labels in GJ set 4 (`J4`, `jM4`) might also be wrong.
 
 ---
 
-## 3. Phase 2: Systematic Outlier Audit of GJ Set 4
+## 3. Stage 2: set 4 (J4, jM4)
 
-To evaluate systematic tube swaps during the harvest of set 4, we implemented the automated boundary extraction function `extract_all_gj_outliers()` across the entire Gyeongju cohort.
+The same rule was applied to all GJ samples after stage 1 (`extract_all_gj_outliers()`).
 
-![GJ Set 4 Reclassification Audit](../assets/026_16S_GJSet4_Reclassification.png)
+![Set-4 audit on PCoA 1](../assets/026_16S_GJSet4_Reclassification.png)
 
-### Metric Concordance Diagnostics
+Console output (PCoA 1 scores from unweighted UniFrac):
 
 ```text
 ======================================================================
@@ -83,68 +84,61 @@ To evaluate systematic tube swaps during the harvest of set 4, we implemented th
 ======================================================================
 ```
 
-* **Control-to-Treatment Inversion ($N=6$):** Six samples labeled `jM4` (`B_jM4-2` through `B_jM4-7`) exhibited extreme displacement toward the treatment centroid (PCoA 1 coordinates between $-0.130$ and $-0.219$), confirming a 100% match across Unweighted UniFrac and Jaccard. These represent physical Gyeongju soil treatments labeled with control tubes.
-* **Treatment-to-Control Inversion ($N=4$):** Four samples labeled `J4` (`B_J4-3`, `B_J4-4`, `B_J4-6`, `B_J4-10`) crossed into positive control territory (PCoA 1 coordinates between $+0.098$ and $+0.151$).
+* **jM4 → `GJ_Treatment` (6 samples).** `B_jM4-2` to `B_jM4-7` lie on the treatment side (PCoA 1 between −0.130 and −0.219). Both metrics flagged the same six samples.
+* **J4 → `GJ_Control` (4 samples).** `B_J4-3`, `B_J4-4`, `B_J4-6` and `B_J4-10` lie on the control side (PCoA 1 between +0.099 and +0.151).
+* **`B_J4-1`.** The two metrics did not give the same J4 list: Jaccard also flagged `B_J4-1`, which lies near the threshold. In the Bray–Curtis, weighted UniFrac and unweighted UniFrac plots (Figures 027 and 028; `B_J4-1` is the green diamond), it lies within the `GJ_Treatment` 95% ellipse. It was therefore kept in `GJ_Treatment`, and only the four J4 samples flagged by both metrics were moved.
+
+![Beta diversity after stage 2](../assets/027_16S_Reclassified2_Beta_Diversity.png)
+
+![Beta diversity after stage 2, B_J4-1 marked](../assets/028_16S_Reclassified2_Beta_Diversity.png)
+
+All changes were written to `metadata_P_generation_corrected_final.tsv`, which keeps the original values in `Treatment_Group_Original` and `Sample_Type_Original` and records each change in `Reclassification_Note`.
 
 ---
 
-### Resolving the `B_J4-1` Boundary Ambiguity
+## 4. Diversity after reassignment
 
-The diagnostic report indicated a metric mismatch for `GJ_Treatment`. While Jaccard flagged sample `B_J4-1` near the decision boundary, evaluating all four complementary beta-diversity spaces resolved its identity.
+Group sizes: `GB_Control` 33, `GB_Treatment` 33, `GJ_Control` 34 (36 − 6 + 4), `GJ_Treatment` 34 (32 + 6 − 4); total 134.
 
-![Reclassification 2 Beta Diversity Overview](../assets/027_16S_Reclassified2_Beta_Diversity.png)
+![Alpha diversity after reassignment](../assets/029_16S_Reclassified2_Alpha_Diversity.png)
 
-![Reclassification 2 Beta Diversity with B_J4-1 Marked](../assets/028_16S_Reclassified2_Beta_Diversity.png)
+* Kruskal–Wallis p < 2 × 10⁻¹⁶ for observed features, Shannon, Simpson and Faith's PD.
+* Median observed features: about 975 (`GB_Control`), 1,670 (`GB_Treatment`), 945 (`GJ_Control`) and 1,390 (`GJ_Treatment`).
 
-* **Phylogenetic & Quantitative Clustering:** In Unweighted UniFrac ($R^2 = 0.285$), Weighted UniFrac ($R^2 = 0.249$), and Bray-Curtis ($R^2 = 0.288$), `B_J4-1` (green diamond) clusters within the core `GJ_Treatment` 95% confidence ellipse.
-* **Biological Decision:** `B_J4-1` was confirmed as an authentic Treatment replicate and retained within `GJ_Treatment`. Only the 4 concordant outliers (`B_J4-3`, `B_J4-4`, `B_J4-6`, `B_J4-10`) were reclassified to `GJ_Control`.
+![Beta diversity after reassignment](../assets/030_16S_Reclassified2_Beta_Diversity.png)
 
----
+| Distance | PERMANOVA R² | p | Dispersion p |
+| :--- | ---: | ---: | ---: |
+| Bray–Curtis | 0.288 | 0.001 | 0.001 |
+| Weighted UniFrac | 0.249 | 0.001 | 0.001 |
+| Unweighted UniFrac | 0.285 | 0.001 | 0.002 |
+| Jaccard | 0.229 | 0.001 | 0.001 |
 
-## 4. Phase 3: Final Curated Cohort Architecture & Diversity Verification
-
-Applying the two-phase forensic reclassification restored sample allocations across all experimental groups:
-* **Gijang B:** $N = 33$ Control, $N = 33$ Treatment
-* **Gyeongju:** $N = 34$ Control, $N = 34$ Treatment ($36 - 6 + 4 = 34$ Control; $32 + 6 - 4 = 34$ Treatment)
-* **Total Cohort Size:** Balanced $N = 134$ sequencing libraries.
-
-![Final Reclassified Alpha Diversity](../assets/029_16S_Reclassified2_Alpha_Diversity.png)
-
-### Alpha Diversity Profiles Post-Correction
-* **Variance Stabilization:** Within-group dispersion contracted across all four indices. Kruskal-Wallis tests confirm robust separation ($p < 2 \times 10^{-16}$ across Observed Features, Shannon, Simpson, and Faith's PD).
-* **Biological Response:** Peat plug controls maintain baseline richness ($\sim 950\text{--}1000$ ASVs), whereas both Gijang B and Gyeongju soil suspensions expand rhizosphere richness to $\sim 1500\text{--}1700$ ASVs.
-
-![Final Reclassified Beta Diversity](../assets/030_16S_Reclassified2_Beta_Diversity.png)
-
-### Beta Diversity Ordination Post-Correction
-* **Multivariate Separation:** Explanatory power across treatment groups increased substantially:
-  * **Bray-Curtis:** $R^2 = 0.288$, $p = 0.001$
-  * **Weighted UniFrac:** $R^2 = 0.249$, $p = 0.001$
-  * **Unweighted UniFrac:** $R^2 = 0.285$, $p = 0.001$
-  * **Jaccard:** $R^2 = 0.229$, $p = 0.001$
-* **Centroid Cleanliness:** Outliers bridging the inter-treatment void were eliminated. Control and treatment cohorts formed distinct, non-overlapping clusters while preserving the biological divergence between regional soil lineages along Axis 2.
+R² is higher than in the standard set (0.205–0.262; 2026-07-24_01). This is expected, because samples were moved to the side of PCoA 1 where their new group lies, using the same distances. The increase is not independent evidence that the new labels are correct. The two control groups still overlap, and `GB_Treatment` and `GJ_Treatment` overlap in the UniFrac plots.
 
 ---
 
-## 5. Sample Reclassification Registry
+## 5. Label changes
 
-| Original Tube Label | Physical Batch | Diagnostic PCoA 1 Coordinate | Initial Assignment | Final Curated Assignment | Reclassification Basis |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **B_J2x** | `GJ3_Extra` | $+0.264$ | `GJ_Treatment_Extra` | **`GJ_Control`** | Unweighted UniFrac + Jaccard Consensus |
-| **B_J5x** | `GJ3_Extra` | $+0.248$ | `GJ_Treatment_Extra` | **`GJ_Control`** | Unweighted UniFrac + Jaccard Consensus |
-| **B_J13x** | `GJ3_Extra` | $+0.211$ | `GJ_Treatment_Extra` | **`GJ_Control`** | Unweighted UniFrac + Jaccard Consensus |
-| **B_J2y** | `GJ3_Extra` | $-0.176$ | `GJ_Treatment_Extra` | **`GJ_Treatment`** | Unweighted UniFrac + Jaccard Consensus |
-| **B_J5y** | `GJ3_Extra` | $-0.169$ | `GJ_Treatment_Extra` | **`GJ_Treatment`** | Unweighted UniFrac + Jaccard Consensus |
-| **B_J7x** | `GJ3_Extra` | $-0.198$ | `GJ_Treatment_Extra` | **`GJ_Treatment`** | Unweighted UniFrac + Jaccard Consensus |
-| **B_J8x** | `GJ3_Extra` | $-0.182$ | `GJ_Treatment_Extra` | **`GJ_Treatment`** | Unweighted UniFrac + Jaccard Consensus |
-| **B_jM4-2** | `jM4` | $-0.185$ | `GJ_Control` | **`GJ_Treatment`** | 100% Dual-Metric Outlier Match |
-| **B_jM4-3** | `jM4` | $-0.130$ | `GJ_Control` | **`GJ_Treatment`** | 100% Dual-Metric Outlier Match |
-| **B_jM4-4** | `jM4` | $-0.179$ | `GJ_Control` | **`GJ_Treatment`** | 100% Dual-Metric Outlier Match |
-| **B_jM4-5** | `jM4` | $-0.161$ | `GJ_Control` | **`GJ_Treatment`** | 100% Dual-Metric Outlier Match |
-| **B_jM4-6** | `jM4` | $-0.135$ | `GJ_Control` | **`GJ_Treatment`** | 100% Dual-Metric Outlier Match |
-| **B_jM4-7** | `jM4` | $-0.219$ | `GJ_Control` | **`GJ_Treatment`** | 100% Dual-Metric Outlier Match |
-| **B_J4-3** | `J4` | $+0.129$ | `GJ_Treatment` | **`GJ_Control`** | 100% Dual-Metric Outlier Match |
-| **B_J4-4** | `J4` | $+0.099$ | `GJ_Treatment` | **`GJ_Control`** | 100% Dual-Metric Outlier Match |
-| **B_J4-6** | `J4` | $+0.143$ | `GJ_Treatment` | **`GJ_Control`** | 100% Dual-Metric Outlier Match |
-| **B_J4-10** | `J4` | $+0.151$ | `GJ_Treatment` | **`GJ_Control`** | 100% Dual-Metric Outlier Match |
-| **B_J4-1** | `J4` | Boundary Case | `GJ_Treatment` | **`GJ_Treatment`** | Retained (3/4 Metrics Concordant) |
+| Sample | Set | Original group | New group | Basis |
+| :--- | :--- | :--- | :--- | :--- |
+| `B_J2x` | GJ3 x/y | `GJ_Treatment_Extra` | `GJ_Control` | stage 1, both metrics (Figure 023) |
+| `B_J5x` | GJ3 x/y | `GJ_Treatment_Extra` | `GJ_Control` | stage 1, both metrics |
+| `B_J13x` | GJ3 x/y | `GJ_Treatment_Extra` | `GJ_Control` | stage 1, both metrics |
+| `B_J2y` | GJ3 x/y | `GJ_Treatment_Extra` | `GJ_Treatment` | stage 1, both metrics |
+| `B_J5y` | GJ3 x/y | `GJ_Treatment_Extra` | `GJ_Treatment` | stage 1, both metrics |
+| `B_J7x` | GJ3 x/y | `GJ_Treatment_Extra` | `GJ_Treatment` | stage 1, both metrics |
+| `B_J8x` | GJ3 x/y | `GJ_Treatment_Extra` | `GJ_Treatment` | stage 1, both metrics |
+| `B_jM4-2` | jM4 | `GJ_Control` | `GJ_Treatment` | stage 2, both metrics (PCoA 1 −0.185) |
+| `B_jM4-3` | jM4 | `GJ_Control` | `GJ_Treatment` | stage 2, both metrics (−0.130) |
+| `B_jM4-4` | jM4 | `GJ_Control` | `GJ_Treatment` | stage 2, both metrics (−0.179) |
+| `B_jM4-5` | jM4 | `GJ_Control` | `GJ_Treatment` | stage 2, both metrics (−0.161) |
+| `B_jM4-6` | jM4 | `GJ_Control` | `GJ_Treatment` | stage 2, both metrics (−0.135) |
+| `B_jM4-7` | jM4 | `GJ_Control` | `GJ_Treatment` | stage 2, both metrics (−0.219) |
+| `B_J4-3` | J4 | `GJ_Treatment` | `GJ_Control` | stage 2, both metrics (+0.129) |
+| `B_J4-4` | J4 | `GJ_Treatment` | `GJ_Control` | stage 2, both metrics (+0.099) |
+| `B_J4-6` | J4 | `GJ_Treatment` | `GJ_Control` | stage 2, both metrics (+0.143) |
+| `B_J4-10` | J4 | `GJ_Treatment` | `GJ_Control` | stage 2, both metrics (+0.151) |
+| `B_J4-1` | J4 | `GJ_Treatment` | `GJ_Treatment` (unchanged) | flagged by Jaccard only |
+
+PCoA 1 values in brackets are the unweighted UniFrac scores from the console output. The scores of the x/y samples were not printed; see Figure 023.

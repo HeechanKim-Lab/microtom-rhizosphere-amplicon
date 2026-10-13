@@ -1,120 +1,159 @@
-# LinDA Biomarker Deconvolution, Soil Immigrant Verification, and PICRUSt2 Functional Metagenomics
-**Date:** August 24, 2026  
-**Project:** 04_MicroTom_P_Rhizosphere_Amplicon_Analysis  
-**Target Assays:** Bacterial 16S rRNA (V3–V4)  
-**Platform:** R v4.6.1 (`aarch64-apple-darwin23`, Native ARM64) & Python 3.10  
-**Input Artifacts:** `05_taxonomy_16S/table_16S_clean.qza`, `picrust2_out_16S/*`, `metadata_P_generation.tsv`  
+# Differential Abundance (LinDA) and PICRUSt2 Pathways (N = 110)
+
+**Date:** 2026-08-24
+**Stage:** LinDA for each contrast; most enriched and depleted ASVs; fold-change heatmap; group-exclusive ASVs; differential abundance of PICRUSt2 pathways; pathway heatmap
+**Cohort:** five batches, original labels; N = 110 (`GB_Control` 33, `GB_Treatment` 33, `GJ_Control` 22, `GJ_Treatment` 22). The exclusive-ASV table (Section 4) is from the six-batch set (N = 134).
+**Script:** `modules/13_linda_and_picrust2_functional.R`; the same code is in `pipeline/run_analysis.R` (sections 4-1 to "PICRUSt2 Sample-Level Heatmap")
+**Platform:** R 4.6.1 (`aarch64-apple-darwin23`)
+**Input:** `07_diversity_16S/core_metrics/rarefied_table.qza`, `05_taxonomy_16S/taxonomy_16S.qza`, `picrust2_out_16S/pathways_out/path_abun_unstrat.tsv.gz`, `metadata_P_generation.tsv`
 
 ---
 
-## 1. Differential Abundance via LinDA (Pruned Cohort Benchmark)
+## 1. LinDA on ASVs
 
-Following the removal of the compromised `GJ3` batch, differential abundance testing was executed on the locked $N = 110$ cohort using **LinDA** (Linear Models for Differential Abundance). 
+Each treatment was compared with its own control (GB: 33 vs 33; GJ: 22 vs 22), with the control as reference level:
 
-Synchronous pairwise contrasts evaluate treatment-specific succession against paired temporal controls:
-1. **Gijang B Lineage:** `GB_Treatment` ($N = 33$) vs. `GB_Control` ($N = 33$)
-2. **Gyeongju Lineage:** `GJ_Treatment` ($N = 22$) vs. `GJ_Control` ($N = 22$)
+```r
+set.seed(42)
+linda_res <- linda(
+  feature.dat = counts_gb,      # rarefied counts, GB samples only
+  meta.dat = meta_linda,
+  formula = "~ Treatment_Group",
+  alpha = 0.05,
+  prev.filter = 0.10,
+  mean.abund.filter = 0.0001
+)
+```
 
-![B vs. M(B) Volcano Plot (LinDA)](../assets/078_16S_GB_Volcano_Plot.png)
+* Input: the rarefied 16S table (27,000 reads per sample).
+* ASVs present in fewer than 10% of the samples of a contrast were removed (`prev.filter = 0.10`).
+* No set or batch term was included in the model.
+* ASVs with FDR-adjusted p < 0.05 and log2FC ≥ 1 were called enriched in the treatment; those with FDR < 0.05 and log2FC ≤ −1 were called enriched in the control (depleted).
 
-![J vs. M(J) Volcano Plot (LinDA)](../assets/079_16S_GJ_Volcano_Plot.png)
+![B vs. M(B) volcano plot](../assets/078_16S_GB_Volcano_Plot.png)
 
-### Distributional Diagnostics
-* **Gijang B Biomarker Profile (Figure 078):** Strong positive asymmetry ($\text{Log}_2\text{FC} > 3\text{--}6$) with statistical significance reaching $-\log_{10}(\text{FDR}) \approx 40\text{--}65$. Top enriched taxa include *Acidibacter*, *Dongia*, *Chryseolinea*, *Gaiella*, *SC-I-84*, *Blastocatellaceae*, and uncultured *Proteobacteria*. Peat-associated taxa depleted in B include *Haliangium*, *Bauldia*, *Nocardioides*, *Sphingomonadaceae*, and *JG30-KF-CM45*.
-* **Gyeongju Biomarker Profile (Figure 079):** Significant positive shifts isolate distinct soil clades: *Porphyrobacter*, *Dokdonella*, *Pseudolabrys*, *WD2101_soil_group*, *Sphingomonas*, *Gemmatimonas*, *Pir4_lineage*, and *JGI_0001001-H03*. Depleted taxa include *Xanthobacteraceae*, *Devosiaceae*, *Parafilimonas*, *Anaeromyxobacter*, and *Candidatus Solibacter*.
+![J vs. M(J) volcano plot](../assets/079_16S_GJ_Volcano_Plot.png)
 
----
-
-## 2. Inoculant Verification: Origin Tracing of Enriched Taxa
-
-To verify whether taxa displaying large positive shifts represent genuine immigrants from field soil suspensions rather than latent peat plug microbes blooming under irrigation, baseline relative abundances were quantified in uninoculated controls.
-
-![Relative Abundance of Top 20 Large-Shift Taxa in GB](../assets/080_16S_GB_Top20_LargeShift_Taxa_Boxplot.png)
-
-![Relative Abundance of Top 20 Large-Shift Taxa in GJ](../assets/081_16S_GJ_Top20_LargeShift_Taxa_Boxplot.png)
-
-### Empirical Origin Confirmation
-* **Gijang B Inoculant Colonization (Figure 080):** Across all top 20 positive-shift ASVs—including *Chryseolinea* (`8e3a6`), *Acidibacter* (`c1b63`), *uncultured Micropepsaceae* (`d9c97`), *Candidatus Adlerbacteria* (`939b3`), *BIrii41* (`1b36c`), *Cerasicoccus* (`21f4c`), and *Terrimonas* (`7c4b8`)—relative abundance in `GB_Control` is **strictly zero ($0.00\%$)** across all 33 biological replicates.
-* **Gyeongju Inoculant Colonization (Figure 081):** Top positive-shift ASVs in GJ—including *WD2101_soil_group* (`6cb5d`), *Blastocatellaceae* (`64c85`, `3230d`), *Streptomyces* (`93120`), *Pseudolabrys* (`4ea1e`), *Candidatus Kaiserbacteria* (`adc5e`), *Parcubacteria* (`4f235`), *Dokdonella* (`df21d`), and *Porphyrobacter* (`d8831`)—exhibit **flat zero ($0.00\%$) baseline detection** in `GJ_Control`.
-
-**Analytical Verdict:** The complete absence of these features in uninoculated peat controls confirms they do not originate from dormant endospores or background contaminants in the growth substrate. They represent bona fide exogenous immigrants introduced via field soil suspensions that successfully established within the tomato rhizosphere.
+* In both contrasts, many more ASVs were enriched in the treated group than in the control.
+* **GB (Figure 078):** −log10(FDR) up to about 62, with log2FC up to about 9. Labelled enriched ASVs: *Acidibacter*, *Dongia*, *Chryseolinea*, *Gaiella*, SC-I-84, a Blastocatellaceae ASV, an "uncultured" ASV and an ASV classified only to Proteobacteria. Labelled depleted ASVs: *Haliangium*, *Bauldia*, *Nocardioides*, a Sphingomonadaceae ASV, JG30-KF-CM45 and "uncultured" ASVs.
+* **GJ (Figure 079):** −log10(FDR) up to about 48. Labelled enriched ASVs: *Porphyrobacter*, *Dokdonella*, *Pseudolabrys*, WD2101_soil_group, *Sphingomonas*, *Gemmatimonas*, Pir4_lineage and JGI_0001001-H03. Labelled depleted ASVs: Xanthobacteraceae, Sphingomonadaceae and Devosiaceae ASVs, *Parafilimonas*, *Anaeromyxobacter*, *Candidatus* Solibacter, and other *Pseudolabrys* and *Acidibacter* ASVs.
 
 ---
 
-## 3. Depletion Mechanics: Absolute Elimination vs. Competitive Dilution
+## 2. Most enriched and most depleted ASVs
 
-To establish whether negative fold changes reflect biological eradication (microbial antagonism, phage predation, or niche displacement) or mathematical dilution caused by the influx of immigrant reads, we tracked the abundance of top depleted ASVs in treated rhizospheres.
+For each contrast, the 20 enriched ASVs with the largest log2FC and the 20 depleted ASVs with the most negative log2FC are shown as relative abundance per sample. ASV IDs are given as their first five characters.
 
-![Relative Abundance of Top 20 Depleted Taxa in GB](../assets/082_16S_GB_Top20_N_LargeShift_Taxa_Boxplot.png)
+![Top 20 enriched ASVs, GB](../assets/080_16S_GB_Top20_LargeShift_Taxa_Boxplot.png)
 
-![Relative Abundance of Top 20 Depleted Taxa in GJ](../assets/083_16S_GJ_Top20_N_LargeShift_Taxa_Boxplot.png)
+![Top 20 enriched ASVs, GJ](../assets/081_16S_GJ_Top20_LargeShift_Taxa_Boxplot.png)
 
-### Depletion Profiles
-* **Persistent Low-Level Baselines:** In both lineages (`GB_Treatment` in Figure 082 and `GJ_Treatment` in Figure 083), the top depleted taxa—such as *Sphingomonadaceae* (`059bb`, `04c66`), *Haliangium* (`88d07`), *Bauldia* (`6a8af`), *Nocardioides* (`d4ce3`, `5375e`), *Parafilimonas* (`487ed`), and *Devosiaceae* (`43bec`)—are **not completely eradicated**. 
-* **Detection Persistence:** Rather than dropping to absolute zero across all replicates, these taxa persist at low relative abundances ($0.01\%\text{--}0.05\%$) in a substantial fraction of treated plants.
-* **Ecological Mechanism:** Soil suspension inoculation does not chemically sterilize or completely eliminate native peat-colonizing bacteria. Instead, the observed negative log-fold changes are driven primarily by **competitive suppression and compositional dilution**: the expansion of hundreds of newly colonized soil ASVs reduces the proportional representation of resident peat taxa without completely purging them from the root surface.
+* **GB (Figure 080):** for example *Chryseolinea* (`8e3a6`), *Acidibacter* (`c1b63`), "uncultured" (`d9c97`), *Candidatus* Adlerbacteria (`939b3`), BIrii41 (`1b36c`), *Cerasicoccus* (`21f4c`) and *Terrimonas* (`7e4b8`). In `GB_Control` these ASVs were absent or present at low levels; the highest control values, about 0.15%, were for WD2101_soil_group (`744f6`) and *Lacunisphaera* (`f65a2`).
+* **GJ (Figure 081):** for example WD2101_soil_group (`6cb5d`), Blastocatellaceae (`64c85`, `3230d`), *Streptomyces* (`93120`), *Pseudolabrys* (`4ea1e`), *Candidatus* Kaiserbacteria (`adc5e`), Parcubacteria (`4f235`), *Dokdonella* (`df21d`) and *Porphyrobacter* (`d8831`). In `GJ_Control` these ASVs were absent or present at about 0.05% or less in a few samples.
 
----
+These ASVs were absent or rare in the controls and present in most treated plants. This is consistent with their introduction by the soil suspensions. The soil suspensions themselves are not among the sequenced samples, so their source is not shown directly.
 
-## 4. Cross-Lineage Biomarker Specificity & Private Taxa
+![Top 20 depleted ASVs, GB](../assets/082_16S_GB_Top20_N_LargeShift_Taxa_Boxplot.png)
 
-Clustering LinDA $\text{Log}_2\text{FC}$ effect sizes across both contrasts decouples shared soil generalists from lineage-specific colonizers.
+![Top 20 depleted ASVs, GJ](../assets/083_16S_GJ_Top20_N_LargeShift_Taxa_Boxplot.png)
 
-![Global Heatmap of Differential Abundance (LinDA)](../assets/084_16S_Heatmap.png)
-
-### Heatmap Partitioning
-* **Shared Soil Generalists (Co-Enriched):** A central cluster exhibits coordinated positive fold changes in both `GB_Treatment vs. GB_Control` and `GJ_Treatment vs. GJ_Control`. These represent generalist soil bacteria capable of colonizing peat-bound tomato roots irrespective of regional soil origin.
-* **Gijang B Exclusive Biomarkers:** Prominent upper block displaying strong enrichment in GB ($\text{Log}_2\text{FC} > 5$) while remaining near zero in GJ.
-* **Gyeongju Exclusive Biomarkers:** Distinct lower block displaying strong enrichment in GJ while remaining undetectable in GB.
-* **Suppressed Peat Consortium:** Clades exhibiting negative fold changes across both treatments, reflecting common peat-resident taxa displaced by soil-derived communities.
-
-![Exclusive Rare Taxa Summary Table](../assets/088_16S_Exclusive_Rare_Taxa_Table.png)
-
-### Group-Exclusive Private Taxa (`Bacteria_16S_Exclusive_Rare_Taxa_Table.tsv`)
-Evaluating taxa detected exclusively within a single treatment condition ($\ge 2$ replicates in target group, zero in all other three groups) confirms the presence of lineage-private consortia:
-* **Gijang B Private Consortium:** High-prevalence ASVs including *Acidibacter* (`c1b63a`, 100% prevalence), *Candidatus Adlerbacteria* (`939b3c`, 100% prevalence), *uncultured Micropepsaceae* (`d9c97d`, 100% prevalence), *Parcubacteria* (`9382ad`, 87.9% prevalence), and *WD2101_soil_group* (`285925`, 97.0% prevalence).
-* **Biological Relevance:** These private taxa establish stable niches exclusively within their respective soil treatment, providing candidate microbial drivers for lineage-specific host phenotypes.
+* **GB (Figure 082):** for example Sphingomonadaceae (`059bb`, `04c66`), *Haliangium* (`88d07`), *Bauldia* (`6a8af`, `62e24`), *Nocardioides* (`d4ce3`, `5375e`, `9785a`), JG30-KF-CM45 (`aeb74`, `fabea`) and *Parafilimonas* (`487ed`).
+* **GJ (Figure 083):** for example Sphingomonadaceae (`04c66`, `059bb`, `07822`), Xanthobacteraceae (`f8ce1`), Devosiaceae (`430ec`), *Gemmata* (`73c81`), *Parafilimonas* (`487ed`), *Pseudolabrys* (`e038b`) and *Candidatus* Solibacter (`36ff8`).
+* Some depleted ASVs were not detected in any treated sample (for example *Nocardioides* `d4ce3`, JG30-KF-CM45 `fabea` and "uncultured" `24bdb` in GB; Xanthobacteraceae `f8ce1` in GJ). Others remained at low levels in some treated plants (for example Sphingomonadaceae `059bb`, up to about 0.09% in GB).
+* Relative abundances cannot distinguish a loss of these taxa from dilution by the taxa added with the soil.
 
 ---
 
-## 5. Predicted Metagenomic Functional Profiles (PICRUSt2)
+## 3. Fold-change heatmap
 
-To evaluate whether taxonomic restructuring shifts the functional metabolic capacity of the rhizosphere, inferred MetaCyc pathway abundances were modeled using `ggpicrust2`.
+![LinDA heatmap](../assets/084_16S_Heatmap.png)
 
-![GB PICRUSt2 Differentially Abundant Pathways](../assets/085_16S_GB_PICRUSt2_Forestplot.png)
-
-![GJ PICRUSt2 Differentially Abundant Pathways](../assets/086_16S_GJ_PICRUSt2_Forestplot.png)
-
-### Functional Pathway Enrichments
-
-| Pathway Description | MetaCyc ID / Class | Effect in GB | Effect in GJ | Biological Implication |
-| :--- | :--- | :--- | :--- | :--- |
-| **3-Hydroxypropanoate Cycle** | Carbon Fixation / Assimilation | $\text{Log}_2\text{FC} \approx +6.0$ | $\text{Log}_2\text{FC} \approx +6.5$ | Autotrophic/mixotrophic carbon capture |
-| **Glyoxylate Assimilation** | Anaplerotic Carbon Metabolism | $\text{Log}_2\text{FC} \approx +6.0$ | $\text{Log}_2\text{FC} \approx +6.4$ | Acetate/fatty acid utilization |
-| **Cholesterol Degradation I, II, III** | Steroid Lipid Catabolism | $\text{Log}_2\text{FC} > +6.5$ | $\text{Log}_2\text{FC} \approx +1.0$ | Sterol and lipid degradation |
-| **Chorismate Biosynthesis II (archaea)**| Aromatic Amino Acid Precursor | $\text{Log}_2\text{FC} > +6.5$ | $\text{Log}_2\text{FC} \approx +6.0$ | Precursor for siderophores and aromatics |
-| **Retinol Biosynthesis** | Terpenoid / Carotenoid Metabolism| $\text{Log}_2\text{FC} \approx +5.8$ | $\text{Log}_2\text{FC} \approx +7.6$ | Apocarotenoid and pigment turnover |
-| **Vitamin B6 Degradation** | Pyridoxal Catabolism | $\text{Log}_2\text{FC} \approx +1.2$ | $\text{Log}_2\text{FC} \approx +1.1$ | Micronutrient recycling |
-| **Nitrifier Denitrification** | Inorganic Nitrogen Dissimilation | Not Enriched | $\text{Log}_2\text{FC} \approx +3.1$ | Nitrogen turnover in GJ soil |
-| **dTDP-D-desosamine Biosynthesis** | Macrolide Antibiotic Biosynthesis| Not Enriched | $\text{Log}_2\text{FC} \approx +5.7$ | Specialized secondary metabolite synthesis |
-| **Sucrose Biosynthesis I & III** | Carbohydrate Biosynthesis | $\text{Log}_2\text{FC} < -0.5$ | Depleted | Native plant-like sucrose synthesis in peat |
-
-* **Shared Inoculation Signatures:** Both treatments enrich for central metabolic pathways including the 3-hydroxypropanoate cycle, glyoxylate assimilation, and chorismate biosynthesis, indicating expanded metabolic versatility in soil-inoculated rhizospheres.
-* **Lineage-Specific Capabilities:**
-  * **GB Treatment:** Enriches for steroid catabolism (cholesterol degradation I & II, $\text{Log}_2\text{FC} > 6.5$), tetracenomycin C antibiotic biosynthesis, and reductive Stickland amino acid fermentation.
-  * **GJ Treatment:** Enriches for nitrifier denitrification, specialized macrolide biosynthesis (dTDP-D-desosamine), and short-chain acyl-CoA catabolism (propanoyl-CoA degradation II).
+* Rows: all ASVs enriched or depleted (FDR < 0.05, |log2FC| ≥ 1) in at least one contrast. Rows are clustered (Euclidean distance, complete linkage); values are clamped to ±8.
+* An ASV missing from one contrast's output (for example because it was removed by the prevalence filter) is shown as 0 (`values_fill = 0`). A white cell can therefore mean "no change" or "not tested".
+* The largest block contains ASVs that are higher in `GB_Treatment` only. Other blocks contain ASVs higher in `GJ_Treatment` only, ASVs higher in both treatments, and smaller groups of ASVs lower in one or both treatments.
 
 ---
 
-## 6. Sample-Level Functional Landscape (Z-Score Heatmap)
+## 4. Group-exclusive ASVs
 
-Hierarchical clustering of row-standardized pathway abundance scores ($Z$-scores) evaluates functional coherence across individual biological replicates.
+![Exclusive ASV table](../assets/088_16S_Exclusive_Rare_Taxa_Table.png)
 
-![Sample-Level Predicted Pathway Profiles (Z-score)](../assets/087_16S_PICRUSt2_Heatmap(zscore).png)
+> **Note.** Figure 088 is the same file as Figure 045 (identical content). It shows the table from the six-batch set with reassigned labels (N = 134; 2026-07-25_01), not the N = 110 set. `pipeline/run_analysis.R` contains an N = 110 version of this step, but its output has not been added to the repository.
 
-### Multivariate Functional Structure
-* **Control vs. Treatment Segregation:** Uninoculated controls (`GB_Control` and `GJ_Control`) cluster together based on high baseline scores for sucrose biosynthesis, purine/adenosine nucleotide de novo synthesis, and basic carbohydrate metabolism.
-* **Treatment Group Separation:** Inoculated libraries resolve into distinct functional clusters:
-  * `GB_Treatment` replicates display elevated Z-scores for reductive TCA cycle variants, fatty acid beta-oxidation, and secondary metabolite biosynthesis.
-  * `GJ_Treatment` replicates show consistent enrichment across amino acid degradation pathways, ethanolamine utilization, and specific coenzyme biosynthetic cascades.
-* **Functional Uniformity:** Within each group, individual plant replicates exhibit consistent functional profiles, demonstrating that PICRUSt2-predicted metabolic potential reflects coordinated community-level shifts rather than isolated outlier libraries.
+Definition: an ASV detected in at least 2 samples of one group and in no sample of the other three groups.
+
+| ASV | Taxon | Samples detected in `GB_Treatment` (of 33) | Mean relative abundance in `GB_Treatment` |
+| :--- | :--- | :--- | ---: |
+| `c1b63a` | *Acidibacter* | 33 (100%) | 0.433% |
+| `938ad4` | Parcubacteria | 29 (87.9%) | 0.351% |
+| `939b3c` | *Candidatus* Adlerbacteria | 33 (100%) | 0.316% |
+| `d9c97d` | uncultured (Micropepsaceae) | 33 (100%) | 0.271% |
+| `285925` | WD2101_soil_group | 32 (97.0%) | 0.182% |
+
+The GB groups are the same in both sets, and the N = 110 GJ samples are a subset of the N = 134 GJ samples. Similar `GB_Treatment` results are therefore expected for N = 110, but the N = 110 table is a separate rarefaction, so the exact values may differ.
+
+---
+
+## 5. PICRUSt2 pathways
+
+LinDA was applied to the unstratified MetaCyc pathway abundances (`path_abun_unstrat.tsv.gz`), separately for each contrast:
+
+```r
+set.seed(42)
+linda_res <- linda(
+  feature.dat = path_matrix,
+  meta.dat = metadata,
+  formula = "~ Treatment_Group",
+  alpha = 0.05,
+  prev.filter = 0.1,
+  zero.handling = "pseudo-count"
+)
+```
+
+* Pathway descriptions were added with `ggpicrust2::pathway_annotation(pathway = "MetaCyc")`. `ggpicrust2` was used only for these descriptions, not for the statistics. Two IDs were labelled by hand: `PWY-8190` in the GB run ("L-glutamate degradation XI (reductive Stickland reaction)") and `PWY-8154` in the GJ run ("superpathway of cholesterol degradation III (oxidase)").
+* The forest plots show the 20 pathways with the smallest FDR among those with FDR < 0.05. Points are log2FC; bars are 95% confidence intervals (log2FC ± 1.96 × SE); point size is −log10(FDR). No fold-change threshold was applied.
+* Full results were written to `figure/PICRUSt2_LinDA_GB_Control_vs_GB_Treatment.csv` and `figure/PICRUSt2_LinDA_GJ_Control_vs_GJ_Treatment.csv` (not in the repository).
+
+![PICRUSt2 pathways, GB](../assets/085_16S_GB_PICRUSt2_Forestplot.png)
+
+![PICRUSt2 pathways, GJ](../assets/086_16S_GJ_PICRUSt2_Forestplot.png)
+
+Selected pathways, with approximate log2FC values read from the forest plots ("—" = not among the 20 pathways shown for that contrast):
+
+| Pathway | GB | GJ |
+| :--- | ---: | ---: |
+| superpathway of the 3-hydroxypropanoate cycle | 6.4 | 6.9 |
+| 3-hydroxypropanoate cycle | 6.0 | 6.5 |
+| glyoxylate assimilation | 6.0 | 6.5 |
+| chorismate biosynthesis II (archaea) | 6.9 | 6.1 |
+| 3-dehydroquinate biosynthesis II (archaea) | 5.9 | 5.2 |
+| retinol biosynthesis | 5.8 | 7.6 |
+| vitamin B6 degradation | 1.1 | 1.1 |
+| superpathway of cholesterol degradation I (cholesterol oxidase) | 6.9 | — |
+| superpathway of cholesterol degradation II (cholesterol dehydrogenase) | 6.9 | — |
+| superpathway of cholesterol degradation III (oxidase) | — | 1.0 |
+| tetracenomycin C biosynthesis | 5.2 | — |
+| L-glutamate degradation XI (reductive Stickland reaction) | 4.6 | — |
+| sucrose biosynthesis I (from photosynthesis) | −1.0 | — |
+| sucrose biosynthesis III | −1.0 | — |
+| pyrimidine deoxyribonucleosides salvage | −1.3 | — |
+| glycolysis V (*Pyrococcus*) | — | 8.8 |
+| β-alanine biosynthesis II | — | 7.0 |
+| propanoyl-CoA degradation II | — | 6.8 |
+| dTDP-D-desosamine biosynthesis | — | 5.7 |
+| nitrifier denitrification | — | 3.1 |
+
+* Seven pathways appear in both top-20 lists, all higher in the treated groups: the two 3-hydroxypropanoate cycle entries, glyoxylate assimilation, chorismate biosynthesis II (archaea), 3-dehydroquinate biosynthesis II (archaea), retinol biosynthesis and vitamin B6 degradation.
+* Only GB has pathways that are lower in the treated group among its top 20 (sucrose biosynthesis I and III, pyrimidine deoxyribonucleosides salvage). All 20 GJ pathways are higher in `GJ_Treatment`.
+* Several top pathways are named after archaeal, yeast or animal pathways (for example chorismate biosynthesis II (archaea), glycolysis V (*Pyrococcus*), retinol biosynthesis and the yeast acyl-CoA degradation pathways). PICRUSt2 infers pathways from predicted enzyme content, so these results need to be checked before any biological interpretation.
+* In Figure 086 the label "&beta;-alanine biosynthesis II" contains an unconverted HTML entity (β-alanine). The forest-plot code does not clean these entities; the heatmap code does.
+
+---
+
+## 6. Pathway heatmap (z-scores)
+
+![PICRUSt2 pathway heatmap](../assets/087_16S_PICRUSt2_Heatmap(zscore).png)
+
+* Pathway abundances were converted to relative abundances per sample. The 35 pathways with the highest standard deviation across samples were kept, scaled to z-scores by row and clustered by row. Samples are ordered by group and are not clustered. Labels longer than 75 characters were shortened. The code also contains hand-written labels for `PWY-7883` and `PWY-8004`; neither pathway is among the 35 shown.
+* Groups differ in which pathways have high z-scores, for example sucrose biosynthesis II and the reductive TCA cycle pathways (high in part of `GB_Control`) and serotonin and aromatic biogenic amine degradation (high in part of `GJ_Control`).
+* There is clear variation within groups. Within each group, columns follow the metadata file, which is sorted by sample ID, so neighbouring columns come from the same set. In `GB_Control`, for example, blocks of about 11 columns (one set each) have different profiles. This suggests differences between sets (batches); it was not tested.

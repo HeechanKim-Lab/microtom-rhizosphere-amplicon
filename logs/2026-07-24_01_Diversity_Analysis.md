@@ -1,188 +1,108 @@
-# Microbial Diversity Profiling and Control Cohort Validation in R
-**Date:** July 24, 2026  
-**Project:** 04_MicroTom_P_Rhizosphere_Amplicon_Analysis  
-**Target Assays:** Bacterial 16S rRNA (V3–V4) & Fungal ITS2  
-**Platform:** R v4.6.1 (`aarch64-apple-darwin23`, Native ARM64)  
-**Input Artifacts:** `07_diversity_16S/*`, `07_diversity_ITS/*`, `05_taxonomy_16S/*`, `05_taxonomy_ITS/*`, `metadata_P_generation.tsv`  
+# Alpha and Beta Diversity in R (Six-Batch Set)
+
+**Date:** 2026-07-24
+**Stage:** alpha and beta diversity; comparison of the two control groups; full vs standard set; ITS2
+**Cohort:** six batches, original labels. Standard set N = 127 (`GB_Control` 33, `GB_Treatment` 33, `GJ_Control` 33, `GJ_Treatment` 28); full set N = 134 (standard + 7 x/y samples)
+**Script:** `modules/06_alpha_beta_diversity.R`
+**Platform:** R 4.6.1 (`aarch64-apple-darwin23`)
+**Input:** `07_diversity_16S/standard/*`, `07_diversity_16S/full/*`, `07_diversity_ITS/full/*`, `metadata_P_generation.tsv`
 
 ---
 
-## 1. Ecological Metrics & Mathematical Formulations
+## 1. Methods
 
-To evaluate intra-sample community complexity and inter-sample ecological divergence, count data were parsed into `phyloseq` containers using `qiime2R` and evaluated across complementary diversity metrics.
-
-### A. Alpha Diversity (Within-Sample Heterogeneity)
-* **Observed Features ($S$):** Direct count of unique Amplicon Sequence Variants (ASVs) detected per sample, measuring total richness.
-* **Shannon Diversity Index ($H'$):** Combines richness and abundance evenness, weighting rare taxa:
-  $$H' = -\sum_{i=1}^{S} p_i \ln p_i$$
-  where $p_i$ is the proportional abundance of feature $i$.
-* **Simpson Diversity Index ($D$):** Emphasizes dominance and common taxa:
-  $$D = 1 - \sum_{i=1}^{S} p_i^2$$
-* **Faith’s Phylogenetic Diversity ($\text{PD}$):** Sum of branch lengths on the rooted phylogenetic tree connecting all members of the observed community:
-  $$\text{PD} = \sum_{b \in T(S)} l_b$$
-  where $T(S)$ is the minimum spanning subtree for observed taxa set $S$, and $l_b$ is the length of branch $b$. Evaluates evolutionary lineage breadth (calculated exclusively for 16S bacterial data).
-* **Pielou’s Evenness ($J'$):** Normalizes Shannon entropy against total observed richness:
-  $$J' = \frac{H'}{\ln S}$$
-
-### B. Beta Diversity & Ordination (Between-Sample Dissimilarity)
-* **Bray-Curtis Dissimilarity:** Abundance-weighted compositional distance:
-  $$BC_{jk} = \frac{\sum_{i} \vert{}x_{ij} - x_{ik}\vert{}}{\sum_{i} (x_{ij} + x_{ik})}$$
-  where $C_{jk}$ is the sum of minimum counts for features shared between samples $j$ and $k$, and $S_j, S_k$ are the total counts.
-* **Jaccard Distance:** Unweighted, presence-absence metric assessing taxonomic turnover:
-  $$J = 1 - \frac{|A \cap B|}{|A \cup B|}$$
-* **Unweighted UniFrac:** Qualitative phylogenetic metric measuring the fraction of unshared branch length between two communities.
-$$u = \frac{\sum_{i=1}^{n} l_i \cdot \mathbb{I}(i)}{L_T}$$
-* **Weighted UniFrac:** Quantitative phylogenetic metric weighting branch length differences by relative abundance differences, prioritizing shifts in dominant lineages.
-$$d = \frac{\sum_{i=1}^{n} l_i \cdot \vert{}p_{i,A} - p_{i,B}\vert{}}{\sum_{i=1}^{n} l_i \cdot (p_{i,A} + p_{i,B})}$$
-* **Principal Coordinate Analysis (PCoA):** Eigenvalue decomposition of distance matrices, projecting maximal multidimensional variance across orthogonal axes.
+* QIIME 2 artifacts were read with `qiime2R::read_qza()`.
+* **Alpha diversity.** Observed features, Shannon and Faith's PD were taken from the QIIME 2 vectors. Simpson was computed on the rarefied table with `vegan::diversity(index = "simpson")`, which returns the Gini–Simpson index (1 − Σ p²); higher values mean lower dominance. ITS2 used observed features, Shannon, Simpson and Pielou's evenness.
+* **Tests.** Kruskal–Wallis test across groups (`rstatix::kruskal_test`) with pairwise Wilcoxon tests, FDR-adjusted (`rstatix::wilcox_test`). Two-group comparisons used the Wilcoxon rank-sum test.
+* **Beta diversity.** PCoA with `cmdscale(k = 2)` on each distance matrix after subsetting to the samples analysed. PERMANOVA with `vegan::adonis2(dist ~ Treatment_Group, permutations = 999)` after `set.seed(42)`. Homogeneity of dispersion with `betadisper()` and `permutest()` (999 permutations). Ellipses are 95% ellipses from `stat_ellipse()` with its default settings (multivariate t-distribution).
 
 ---
 
-## 2. Experimental Control Audit: GB_Control vs. GJ_Control
+## 2. GB_Control vs GJ_Control (standard set)
 
-Because Gijang B and Gyeongju cultivation cycles operated on asynchronous experimental timelines, separate control batches were maintained (`GB_Control` = Peat plug + MES buffer; `GJ_Control` = Peat plug + MES buffer). A critical question was whether these control groups could be statistically pooled into a single reference baseline.
+The Gijang B (GB) and Gyeongju (GJ) experiments were grown at different times, each with its own control group (peat plug + MES buffer). This section tests whether the two control groups can be pooled.
 
-![16S Control Alpha Diversity Comparison](../assets/015_16S_Control_Alpha_Diversity.png)
+![16S alpha diversity, GB_Control vs GJ_Control](../assets/015_16S_Control_Alpha_Diversity.png)
 
-### Alpha Diversity Observations
-* **Richness & Lineage Breadth:** No significant differences are detected between `GB_Control` and `GJ_Control` for Observed Features ($p = 0.73$), Shannon entropy ($p = 0.55$), or Faith’s PD ($p = 0.83$).
-* **Evenness Divergence:** Simpson dominance displays marginal divergence ($p = 0.023$), with `GJ_Control` displaying slightly higher dominance concentration.
+* Observed features (p = 0.73), Shannon (p = 0.55) and Faith's PD (p = 0.83) did not differ (Wilcoxon rank-sum test, 33 vs 33).
+* Simpson differed (p = 0.023): `GJ_Control` had slightly higher Gini–Simpson values, i.e. slightly lower dominance.
 
-![16S Control Beta Diversity Ordination](../assets/016_16S_Control_Beta_Diversity.png)
+![16S beta diversity, GB_Control vs GJ_Control](../assets/016_16S_Control_Beta_Diversity.png)
 
-### Beta Diversity Ordination & PERMANOVA
-* **Centroid Separation:** Multivariate tests confirm statistically significant community divergence between the two control groups across all distance spaces:
-  * Bray-Curtis: $R^2 = 0.111$, $p = 0.001$
-  * Weighted UniFrac: $R^2 = 0.085$, $p = 0.001$
-  * Unweighted UniFrac: $R^2 = 0.077$, $p = 0.001$
-  * Jaccard: $R^2 = 0.083$, $p = 0.001$
-* **Dispersion Homogeneity:** Betadisper tests show no significant variance heterogeneity across groups (all dispersion $p > 0.28$). This confirms that the observed PERMANOVA separation reflects genuine ecological centroid displacement rather than group variance artifacts.
+| Distance | PERMANOVA R² | p | Dispersion p |
+| :--- | ---: | ---: | ---: |
+| Bray–Curtis | 0.111 | 0.001 | 0.428 |
+| Weighted UniFrac | 0.085 | 0.001 | 0.324 |
+| Unweighted UniFrac | 0.077 | 0.001 | 0.453 |
+| Jaccard | 0.083 | 0.001 | 0.284 |
 
-**Analytical Verdict:** While basal peat plug alpha diversity remains stable across timeline replicates, beta-diversity shifts demonstrate significant baseline turnover. Pooling controls is invalid; all treatment evaluations must be benchmarked strictly against their synchronous temporal controls (`GB_Treatment` vs. `GB_Control`; `GJ_Treatment` vs. `GJ_Control`).
+The two control groups have similar alpha diversity but different community composition (R² 0.08–0.11), with similar dispersion. They were therefore not pooled. Each treatment was compared with its own control: `GB_Treatment` vs `GB_Control` and `GJ_Treatment` vs `GJ_Control`.
 
 ---
 
-## 3. Bacterial 16S Diversity Dynamics
+## 3. 16S, full set (N = 134, including the x/y samples)
 
-### A. Full Cohort (With $x/y$ Extra Samples)
+![16S alpha diversity, full set](../assets/017_16S_Extra_Alpha_Diversity.png)
 
-![16S Full Alpha Diversity](../assets/017_16S_Extra_Alpha_Diversity.png)
+* Kruskal–Wallis: observed features p = 4.8 × 10⁻¹⁵, Shannon p < 2 × 10⁻¹⁶, Simpson p = 2.3 × 10⁻¹⁵, Faith's PD p = 1.3 × 10⁻¹⁵.
+* Soil-treated groups had more observed features than controls (medians about 1,670 for `GB_Treatment` and 1,290 for `GJ_Treatment`, compared with about 950–980 for the controls).
+* The x/y group (`GJ_Extra`, n = 7) had a median of about 1,340 observed features and a wide spread, between `GJ_Control` and `GJ_Treatment`.
 
-![16S Full Beta Diversity](../assets/018_16S_Extra_Beta_Diversity.png)
+![16S beta diversity, full set](../assets/018_16S_Extra_Beta_Diversity.png)
 
-* **Alpha Diversity:** Soil inoculation substantially expands bacterial community richness (Kruskal-Wallis $p < 10^{-14}$ across all four metrics). Control libraries average $\sim 1000$ ASVs, whereas `GB_Treatment` and `GJ_Treatment` average $1500\text{--}1700$ ASVs.
-* **Ordination Artifacts:** `GJ_Extra` exhibits broad, diffuse dispersion across PCoA space. In unweighted UniFrac and Jaccard ordinations, `GJ_Extra` samples bridge the space between `GJ_Control` and `GJ_Treatment`, consistent with the label-swap hypothesis identified during feature table auditing.
+| Distance | PERMANOVA R² | p | Dispersion p |
+| :--- | ---: | ---: | ---: |
+| Bray–Curtis | 0.276 | 0.001 | 0.003 |
+| Weighted UniFrac | 0.238 | 0.001 | 0.001 |
+| Unweighted UniFrac | 0.245 | 0.001 | 0.229 |
+| Jaccard | 0.212 | 0.001 | 0.009 |
 
----
-
-### B. Standard Cohort (Without $x/y$ Extra Samples)
-
-![16S Standard Alpha Diversity](../assets/019_16S_Standard_Alpha_Diversity.png)
-
-![16S Standard Beta Diversity](../assets/020_16S_Standard_Beta_Diversity.png)
-
-* **Community Richness Shifts:** Removal of ambiguous samples sharpens treatment separation across Observed Features ($p = 10^{-14}$), Shannon ($p < 2 \times 10^{-16}$), Simpson ($p = 3 \times 10^{-15}$), and Faith’s PD ($p = 6.9 \times 10^{-16}$). Inoculation introduces a broad spectrum of evolutionary clades from field soil into the host rhizosphere.
-* **Beta Diversity Ordination Structure:**
-  * **PCoA Axis 1 ($16.8\%\text{--}22.3\%$ of variance):** Captures the primary biological contrast between uninoculated peat controls and soil-treated rhizospheres.
-  * **PCoA Axis 2 ($7.0\%\text{--}15.7\%$ of variance):** Resolves regional soil chemistry and biological origin, cleanly separating the Gijang B lineage from the Gyeongju lineage.
-  * **Lineage-Specific Affinity:** `GJ_Control` samples orient closer to `GJ_Treatment` than to `GB_Treatment`, while `GB_Control` samples orient toward `GB_Treatment`. PERMANOVA confirms strong group-level structure across Bray-Curtis ($R^2 = 0.262, p = 0.001$), Weighted UniFrac ($R^2 = 0.213, p = 0.001$), and Jaccard ($R^2 = 0.205, p = 0.001$).
+In the unweighted UniFrac and Jaccard plots, the `GJ_Extra` ellipse spans both `GJ_Control` and `GJ_Treatment`. This is consistent with the x/y samples including both treated and control samples.
 
 ---
 
-## 4. Fungal ITS Diversity Dynamics
+## 4. 16S, standard set (N = 127)
 
-![ITS Full Alpha Diversity](../assets/021_ITS_Extra_Alpha_Diversity.png)
+![16S alpha diversity, standard set](../assets/019_16S_Standard_Alpha_Diversity.png)
 
-![ITS Full Beta Diversity](../assets/022_ITS_Extra_Beta_Diversity.png)
+* Kruskal–Wallis: observed features p = 1 × 10⁻¹⁴, Shannon p < 2 × 10⁻¹⁶, Simpson p = 3 × 10⁻¹⁵, Faith's PD p = 6.9 × 10⁻¹⁶.
+* Median observed features: about 970 (`GB_Control`) vs 1,700 (`GB_Treatment`), and about 950 (`GJ_Control`) vs 1,300 (`GJ_Treatment`).
+* Median Faith's PD: about 85 vs 123 (GB) and about 82 vs 110 (GJ).
 
-### A. Alpha Diversity Profiles
-* **Richness Divergence:** Fungal community richness differs sharply across experimental groups (Observed Features $p < 2 \times 10^{-16}$; Shannon $p = 2.1 \times 10^{-11}$; Simpson $p = 1.4 \times 10^{-8}$).
-* **Treatment Contrasts:** Control rhizospheres display low fungal richness (median $\sim 110$ ASVs for `GB_Control`, $\sim 70$ ASVs for `GJ_Control`). Inoculation induces significant colonization, with `GB_Treatment` reaching a median of $\sim 180$ ASVs and `GJ_Treatment` averaging $\sim 140$ ASVs.
-* **Evenness Stability:** Pielou’s evenness shows no pronounced group-level differences ($p = 0.054$), indicating that fungal community expansion is driven primarily by taxonomic acquisition rather than structural changes in dominant taxa.
+![16S beta diversity, standard set](../assets/020_16S_Standard_Beta_Diversity.png)
 
-### B. Beta Diversity Profiles
-* **Regional Separation:** PCoA ordination reveals strong clustering along Axis 1 ($13.2\%$ in Bray-Curtis; $8.8\%$ in Jaccard), driven by the geographic source of the soil inoculum.
-* **Community Turnover:** The Gijang B fungal assemblage occupies a distinct coordinate space from the Gyeongju lineage. In both Bray-Curtis ($R^2 = 0.258, p = 0.001$) and Jaccard ($R^2 = 0.187, p = 0.001$), the controls cluster adjacent to their respective treatments along Axis 2, demonstrating that fungal rhizosphere colonization reflects the regional fungal species pool of each input soil.al Framework
+| Distance | PERMANOVA R² | p | Dispersion p |
+| :--- | ---: | ---: | ---: |
+| Bray–Curtis | 0.262 | 0.001 | 0.002 |
+| Weighted UniFrac | 0.213 | 0.001 | 0.001 |
+| Unweighted UniFrac | 0.240 | 0.001 | 0.051 |
+| Jaccard | 0.205 | 0.001 | 0.015 |
 
-QIIME 2 diversity outputs were ingested into R using `qiime2R` and structured into unified `phyloseq` containers to evaluate community restructuring induced by regional soil suspensions (Gijang B vs. Gyeongju).
-
-* **Alpha Diversity Modeling:** Evaluated via **Observed ASV Richness** (count of non-zero features), **Shannon Diversity** ($H' = -\sum p_i \ln p_i$), **Simpson Dominance Index** ($1 - D = 1 - \sum p_i^2$), and **Faith’s Phylogenetic Diversity** ($PD$, sum of branch lengths on the rooted insertion tree). Group distributions were evaluated using non-parametric Kruskal-Wallis tests followed by pairwise Wilcoxon rank-sum tests.
-* **Beta Diversity & Ordination:** Principal Coordinates Analysis (PCoA) was performed across qualitative (Jaccard, Unweighted UniFrac) and quantitative (Bray-Curtis, Weighted UniFrac) distance spaces.
-* **Multivariate Significance & Homogeneity of Dispersion:** Differences in community centroids were tested via PERMANOVA (`adonis2`, 999 permutations). Multivariate dispersion homogeneity was audited via `betadisper` to verify that significant PERMANOVA results reflect true centroid shifts rather than variance inequalities across groups.
-
----
-
-## 2. Baseline Control Lineage Audit: GB_Control vs. GJ_Control
-
-Due to asynchronous growth schedules during the Parent generation experiment, the Gijang B set (`GB_Control` / `GB_Treatment`) and Gyeongju set (`GJ_Control` / `GJ_Treatment`) were cultivated in separate temporal batches. To test whether the two baseline controls (peat plug + MES buffer) could be pooled into a shared reference group, their diversity profiles were evaluated directly.
-
-![16S Control Alpha Diversity Comparison](../assets/015_16S_Control_Alpha_Diversity.png)
-
-### A. Alpha Diversity Divergence
-* **Richness & Phylogeny Invariance:** Baseline ASV richness (**Observed Features**, $p = 0.73$), phylogenetic breadth (**Faith_PD**, $p = 0.83$), and general entropy (**Shannon**, $p = 0.55$) show no statistically significant divergence between `Gijang_B Control` and `Gyeongju Control`.
-* **Evenness Divergence:** The **Simpson index** displays a statistically significant shift ($p = 0.023$), with `Gyeongju Control` exhibiting a tighter, higher dominance distribution. This indicates that while baseline species richness in peat plugs irrigated with MES buffer remains stable over time, the relative dominance and rank-abundance distribution of core pioneer taxa drift between cultivation batches.
-
-![16S Control Beta Diversity Ordination](../assets/016_16S_Control_Beta_Diversity.png)
-
-### B. Beta Diversity & Centroid Separation
-* **Permutational Divergence:** Across all four beta-diversity metrics, `GB_Control` and `GJ_Control` form statistically distinct community clusters ($p = 0.001$ across Bray-Curtis, Weighted UniFrac, Unweighted UniFrac, and Jaccard).
-* **Variance Explained:** Temporal batch separation accounts for $7.7\%\text{--}11.1\%$ of the total distance variance ($R^2 = 0.111$ on Bray-Curtis; $R^2 = 0.085$ on Weighted UniFrac).
-* **Dispersion Homogeneity:** `betadisper` tests confirmed homogeneous within-group dispersion across all metrics ($p = 0.428$ for Bray-Curtis, $p = 0.324$ for Weighted UniFrac, $p = 0.453$ for Unweighted UniFrac, $p = 0.284$ for Jaccard), verifying that separation is driven by genuine community centroid differences rather than heteroscedastic spread.
-
-### Experimental Implication
-Because the two control groups diverge significantly in beta-diversity space, **pooling `GB_Control` and `GJ_Control` into a single universal reference is statistically invalid**. Downstream differential abundance testing and effect-size estimations must contrast treatments strictly against their corresponding synchronous controls: `GB_Treatment` vs. `GB_Control` and `GJ_Treatment` vs. `GJ_Control`.
+* PCoA 1 explains 12.6–22.3% and PCoA 2 7.0–15.7% of the variation, depending on the metric.
+* In Bray–Curtis and unweighted UniFrac, PCoA 1 separates soil-treated from control samples. The two control groups overlap.
+* Dispersion differed between groups for most metrics (dispersion p ≤ 0.015, except unweighted UniFrac, p = 0.051), so part of the PERMANOVA signal may reflect differences in spread.
 
 ---
 
-## 3. Bacterial 16S Diversity: Impact of Cohort Stratification
+## 5. ITS2, full set (N = 134)
 
-The effect of soil suspension inoculation on bacterial rhizosphere communities was evaluated across both the **Full Cohort** (including the ambiguous `GJ_Extra` group) and the curated **Standard Cohort**.
+![ITS2 alpha diversity, full set](../assets/021_ITS_Extra_Alpha_Diversity.png)
 
-### A. Full Cohort Profiles (Including `GJ_Extra`)
+* Kruskal–Wallis: observed features p < 2 × 10⁻¹⁶, Shannon p = 2.1 × 10⁻¹¹, Simpson p = 1.4 × 10⁻⁸, Pielou's evenness p = 0.054.
+* Median observed fungal ASVs: about 110 (`GB_Control`) and 180 (`GB_Treatment`); about 70 (`GJ_Control`) and 140 (`GJ_Treatment`).
+* Median Shannon in the GB groups: about 4.4 (control) and 5.3 (treated).
+* Evenness did not differ clearly between groups (p = 0.054). The higher diversity of treated samples therefore comes mainly from more ASVs rather than from a more even distribution.
 
-![16S Full Alpha Diversity](../assets/017_16S_Extra_Alpha_Diversity.png)
+![ITS2 beta diversity, full set](../assets/022_ITS_Extra_Beta_Diversity.png)
 
-![16S Full Beta Diversity](../assets/018_16S_Extra_Beta_Diversity.png)
+| Distance | PERMANOVA R² | p | Dispersion p |
+| :--- | ---: | ---: | ---: |
+| Bray–Curtis | 0.258 | 0.001 | 0.005 |
+| Jaccard | 0.187 | 0.001 | 0.001 |
 
-* **Alpha Diversity Expansion:** Exposure to regional soil inocula sharply increases community richness over baseline controls (Kruskal-Wallis $p = 4.8 \times 10^{-15}$ for Observed Features, $p < 2.0 \times 10^{-16}$ for Shannon, $p = 1.3 \times 10^{-15}$ for Faith_PD).
-* **Positioning of `GJ_Extra`:**
-  * In alpha diversity, `GJ_Extra` exhibits intermediate feature richness (median $\sim 1,350$) and high variance, spanning the values between `GJ_Control` and `GJ_Treatment`.
-  * In beta diversity, the 95% confidence ellipse of `GJ_Extra` stretches across the ordination space, overlapping the centroids of both `GJ_Control` and `GJ_Treatment`. This confirms the diagnostic hypothesis that `GJ_Extra` is an unindexed mixture of both experimental conditions.
+* PCoA 1 explains 13.2% (Bray–Curtis) and 8.8% (Jaccard) of the variation.
+* In the Jaccard plot, all GB samples (control and treated) lie on the negative side of PCoA 1 and all GJ samples (control, treated and x/y) on the positive side. The two control groups, which received no soil, also separate. This axis therefore reflects the GB vs GJ experiment (cultivation time) as well as the soil inoculum.
+* Within each experiment, the control and treated groups separate along PCoA 2.
+* The x/y samples overlap both `GJ_Control` and `GJ_Treatment`, as in the 16S data.
 
----
-
-### B. Standard Cohort Profiles (Curated Baseline)
-
-![16S Standard Alpha Diversity](../assets/019_16S_Standard_Alpha_Diversity.png)
-
-![16S Standard Beta Diversity](../assets/020_16S_Standard_Beta_Diversity.png)
-
-* **Refined Alpha Significance:** Excluding `GJ_Extra` increases the statistical resolution of treatment effects ($p = 1.0 \times 10^{-14}$ for Observed Features; $p = 6.9 \times 10^{-16}$ for Faith_PD).
-  * **Observed Features:** Expands from a median of $\sim 970$ in `GB_Control` to $\sim 1,700$ in `GB_Treatment`, and from $\sim 950$ in `GJ_Control` to $\sim 1,300$ in `GJ_Treatment`.
-  * **Phylogenetic Diversity:** Median Faith_PD rises from $\sim 85$ to $\sim 123$ in GB, and from $\sim 82$ to $\sim 110$ in GJ, demonstrating that soil suspensions introduce phylogenetically divergent bacterial clades rather than expanding shallow sub-lineages.
-* **Beta Diversity Clustering:**
-  * Centroid separation remains pronounced across all metrics ($p = 0.001$; Bray-Curtis $R^2 = 0.262$, Unweighted UniFrac $R^2 = 0.240$, Weighted UniFrac $R^2 = 0.213$).
-  * **Parallel Environmental Vectors:** In both Bray-Curtis and Jaccard spaces, Axis 1 captures the broader regional divergence, while Axis 2 captures the shift from baseline MES controls to soil-inoculated rhizospheres. Each treatment cluster aligns alongside its synchronous control, reinforcing the structural necessity of paired-batch contrast modeling.
-
----
-
-## 4. Fungal (ITS2) Rhizosphere Community Dynamics
-
-Fungal communities were evaluated using non-phylogenetic indices (Observed Features, Shannon, Simpson, Pielou Evenness, Bray-Curtis, and Jaccard).
-
-![ITS Full Alpha Diversity](../assets/021_ITS_Extra_Alpha_Diversity.png)
-
-![ITS Full Beta Diversity](../assets/022_ITS_Extra_Beta_Diversity.png)
-
-### A. Alpha Diversity Dynamics
-* **Richness Influx:** Inoculation with soil suspensions drives a notable expansion of fungal richness:
-  * **Observed Features ($p < 2.0 \times 10^{-16}$):** Median fungal ASVs rise from $\sim 110$ in `GB_Control` to $\sim 180$ in `GB_Treatment`, and from $\sim 70$ in `GJ_Control` to $\sim 140$ in `GJ_Treatment`.
-  * **Shannon Diversity ($p = 2.1 \times 10^{-11}$):** Tracks the richness increase, moving from $\sim 4.4$ to $\sim 5.3$ in GB.
-* **Evenness Stability:** **Pielou Evenness** exhibits only marginal divergence across groups ($p = 0.054$). This indicates that the fungal shift is driven primarily by the **colonization of novel fungal taxa** introduced via regional soil suspensions, rather than a restructuring of dominant pioneer fungal abundances.
-
-### B. Beta Diversity & Lineage Turnover
-* **Regional Disjunction:** Fungal beta diversity shows stronger regional differentiation than the bacterial community (Bray-Curtis $R^2 = 0.258, p = 0.001$; Jaccard $R^2 = 0.187, p = 0.001$).
-* **Complete Taxa Turnover on Jaccard Space:**
-  * In the Jaccard ordination (presence/absence), Gijang B samples (`GB_Control` and `GB_Treatment`) form clusters on the negative hemisphere of PCoA 1 ($-0.20$ to $-0.05$), while Gyeongju samples (`GJ_Control`, `GJ_Treatment`, `GJ_Extra`) cluster on the positive hemisphere ($+0.15$ to $+0.25$).
-  * This absolute separation on binary presence/absence demonstrates that Gijang B and Gyeongju soils harbor non-overlapping fungal communities, establishing distinct mycobiome environments in the tomato rhizosphere.
-* **Fungal `GJ_Extra` Behavior:** Consistent with the 16S data, `GJ_Treatment_Extra` spans the coordinate space between `GJ_Control` and `GJ_Treatment` in both Bray-Curtis and Jaccard ordinations, supporting the protocol decision to analyze primary biological hypotheses using the Standard cohort.
+ITS2 was analysed only in this six-batch full set. For the final five-batch set (N = 110), ITS2 was processed up to the core diversity metrics only (2026-07-29_01).

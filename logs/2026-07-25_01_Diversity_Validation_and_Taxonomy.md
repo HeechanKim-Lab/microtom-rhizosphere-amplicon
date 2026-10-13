@@ -1,207 +1,182 @@
-# Post-Reclassification Diversity Validation, Single-Control Benchmarking, and Taxonomic Profiling
-**Date:** July 25, 2026  
-**Project:** 04_MicroTom_P_Rhizosphere_Amplicon_Analysis  
-**Target Assays:** Bacterial 16S rRNA (V3–V4)  
-**Platform:** R v4.6.1 (`aarch64-apple-darwin23`, Native ARM64)  
-**Input Artifacts:** `metadata_P_generation_corrected_final.tsv`, `05_taxonomy_16S/table_16S_clean.qza`, `06_phylo_16S/rooted_tree_16S.qza`, `07_diversity_16S/full/*`  
+# Diversity, Taxonomy and LinDA on the Reassigned Six-Batch Set (Exploratory)
+
+**Date:** 2026-07-25
+**Stage:** control comparison; GB vs GJ treatment; three-group models with one control; phylum and genus composition; LinDA; heatmaps; group-exclusive ASVs
+**Cohort:** six batches with the PCoA-derived labels of 2026-07-24_02 (N = 134: `GB_Control` 33, `GB_Treatment` 33, `GJ_Control` 34, `GJ_Treatment` 34)
+**Script:** `modules/08_comparative_diversity_and_taxonomy.R` (Sections 1–4), `modules/09_linda_differential_abundance.R` (Sections 5–7)
+**Platform:** R 4.6.1 (`aarch64-apple-darwin23`)
+**Input:** `metadata_P_generation_corrected_final.tsv`, `07_diversity_16S/full/*` (including `rarefied_table.qza`), `05_taxonomy_16S/taxonomy_16S.qza`
+
+> **Status.** These results use the reassigned labels and are kept as a record of the exploratory analysis. The final analyses use the five-batch set with original labels (N = 110; 2026-08-10 to 2026-08-24). Methods for alpha and beta diversity are as in 2026-07-24_01.
 
 ---
 
-## 1. Overview & Experimental Framing
+## 1. GB_Control vs GJ_Control after reassignment
 
-Following the two-phase forensic reclassification of the Gyeongju cohort mislabeling, the curated P-generation rhizosphere library was locked at $N = 134$ balanced biological samples:
-* **Gijang B Lineage:** `GB_Control` ($N = 33$), `GB_Treatment` ($N = 33$)
-* **Gyeongju Lineage:** `GJ_Control` ($N = 34$), `GJ_Treatment` ($N = 34$)
+![16S alpha diversity, GB_Control vs GJ_Control](../assets/031_16S_Control_Alpha_Diversity.png)
 
-This log evaluates community diversity and taxonomic shifts under the corrected metadata. Specifically, it tests whether asynchronous control groups can be collapsed into a single reference baseline, profiles the ecological divergence between the two soil inocula, and quantifies taxonomic relative abundance at the phylum and genus levels.
+* Wilcoxon rank-sum test (33 vs 34): observed features p = 0.87, Shannon p = 0.53, Faith's PD p = 0.22, Simpson p = 0.032 (`GJ_Control` slightly higher Gini–Simpson values).
 
----
+![16S beta diversity, GB_Control vs GJ_Control](../assets/032_16S_Control_Beta_Diversity.png)
 
-## 2. Re-Validation of Control Asynchrony: GB_Control vs. GJ_Control
+| Distance | PERMANOVA R² | p | Dispersion p |
+| :--- | ---: | ---: | ---: |
+| Bray–Curtis | 0.114 | 0.001 | 0.100 |
+| Weighted UniFrac | 0.095 | 0.001 | 0.548 |
+| Unweighted UniFrac | 0.077 | 0.001 | 0.581 |
+| Jaccard | 0.083 | 0.001 | 0.003 |
 
-To determine whether the corrected metadata altered the relationship between the two independently grown control cohorts, alpha and beta diversity metrics were re-calculated.
-
-![Reclassified 16S Control Alpha Diversity](../assets/031_16S_Control_Alpha_Diversity.png)
-
-### Alpha Diversity Invariance
-* **Richness & Phylogeny:** Consistent with pre-reclassification observations, uninoculated peat controls maintain statistically indistinguishable alpha diversity: Observed Features ($p = 0.87$), Shannon index ($p = 0.53$), and Faith’s PD ($p = 0.22$).
-* **Dominance Structure:** Simpson diversity remains slightly divergent ($p = 0.032$), indicating subtle variations in the evenness of dominant peat-colonizing ASVs between experimental timelines.
-
-![Reclassified 16S Control Beta Diversity](../assets/032_16S_Control_Beta_Diversity.png)
-
-### Beta Diversity Centroid Divergence
-* **Multivariate Dissimilarity:** PERMANOVA confirms that `GB_Control` and `GJ_Control` occupy statistically distinct coordinates across all four distance metrics:
-  * Bray-Curtis: $R^2 = 0.114$, $p = 0.001$ (Dispersion $p = 0.100$)
-  * Weighted UniFrac: $R^2 = 0.095$, $p = 0.001$ (Dispersion $p = 0.548$)
-  * Unweighted UniFrac: $R^2 = 0.077$, $p = 0.001$ (Dispersion $p = 0.581$)
-  * Jaccard: $R^2 = 0.083$, $p = 0.001$ (Dispersion $p = 0.003$)
-* **Variance Homogeneity:** Non-significant multivariate dispersion across 3 of 4 metrics confirms that separation is driven by genuine centroid shift ($SS_A$) rather than heteroscedastic spread ($SS_W$).
+The result is the same as before reassignment (2026-07-24_01): similar alpha diversity, different composition (R² 0.08–0.11), and similar dispersion except for Jaccard.
 
 ---
 
-## 3. Direct Contrast of Inoculum Lineages: GB_Treatment vs. GJ_Treatment
+## 2. GB_Treatment vs GJ_Treatment
 
-Evaluating the direct contrast between the two soil treatments isolates regional soil-driven selective pressures on the host rhizosphere.
+![16S alpha diversity, GB_Treatment vs GJ_Treatment](../assets/033_16S_Treatment_Alpha_Diversity.png)
 
-![16S Treatment Alpha Diversity Comparison](../assets/033_16S_Treatment_Alpha_Diversity.png)
+* Wilcoxon rank-sum test (33 vs 34): observed features p = 0.075, Shannon p = 0.74, Simpson p = 0.18, Faith's PD p = 0.04.
+* Median observed features were about 1,670 (GB) and 1,390 (GJ). Median Faith's PD was slightly higher in GB (about 123 vs 115).
 
-### Alpha Diversity Dynamics
-* **Richness & Entropy:** Overall feature richness (Observed Features, $p = 0.075$) and Shannon entropy ($p = 0.74$) display equivalent carrying capacities between the two soil treatments, stabilizing around $\sim 1500\text{--}1700$ ASVs.
-* **Phylogenetic Divergence:** Faith’s Phylogenetic Diversity reveals a significant difference ($p = 0.04$), with `GB_Treatment` supporting a slightly broader evolutionary lineage breadth than `GJ_Treatment`.
+![16S beta diversity, GB_Treatment vs GJ_Treatment](../assets/034_16S_Treatment_Beta_Diversity.png)
 
-![16S Treatment Beta Diversity Ordination](../assets/034_16S_Treatment_Beta_Diversity.png)
+| Distance | PERMANOVA R² | p | Dispersion p |
+| :--- | ---: | ---: | ---: |
+| Bray–Curtis | 0.241 | 0.001 | 0.865 |
+| Weighted UniFrac | 0.155 | 0.001 | 0.943 |
+| Unweighted UniFrac | 0.146 | 0.001 | 0.001 |
+| Jaccard | 0.173 | 0.001 | 0.839 |
 
-### Beta Diversity Ordination Structure
-* **Lineage Separation:** The two treatments separate into distinct, non-overlapping clusters along PCoA Axis 1 ($14.7\%\text{--}25.8\%$ of total variance):
-  * Bray-Curtis: $R^2 = 0.241$, $p = 0.001$ (Dispersion $p = 0.865$)
-  * Weighted UniFrac: $R^2 = 0.155$, $p = 0.001$ (Dispersion $p = 0.943$)
-  * Unweighted UniFrac: $R^2 = 0.146$, $p = 0.001$ (Dispersion $p = 0.001$)
-  * Jaccard: $R^2 = 0.173$, $p = 0.001$ (Dispersion $p = 0.839$)
-* **Ecological Specificity:** Homogeneous dispersion across quantitative and qualitative metrics proves that Gijang B and Gyeongju soil suspensions select for distinct, highly reproducible microbial equilibria in the Micro-Tom rhizosphere.
-
----
-
-## 4. Single-Control Model Audit: Testing Asymmetric Baseline Validity
-
-To assess whether a simplified model using a single control against both treatments is viable, we benchmarked tri-group ordinations using either `GB_Control` alone or `GJ_Control` alone.
-
-### A. Model 1: GB_Control with Dual Treatments (`M(B), B, J`)
-
-![GB_Control Single-Control Alpha Diversity](../assets/035_16S_GBControl_Alpha_Diversity.png)
-
-![GB_Control Single-Control Beta Diversity](../assets/036_16S_GBControl_Beta_Diversity.png)
-
-* **Alpha Diversity:** Kruskal-Wallis tests confirm strong overall treatment effects ($p < 10^{-12}$ across all metrics).
-* **Beta Diversity Topology:** In PCoA space, `GB_Control` ($N=33$) clusters closer to `GB_Treatment` ($N=33$) along PCoA Axis 1 ($16.6\%\text{--}21.0\%$) and Axis 2 ($8.4\%\text{--}15.9\%$), leaving `GJ_Treatment` ($N=34$) as a distant outlier ($R^2 = 0.285$ in Bray-Curtis, $R^2 = 0.268$ in Unweighted UniFrac).
+* PCoA 1 explains 14.7–25.8% of the variation.
+* The two treatments separate along PCoA 1 in Bray–Curtis, unweighted UniFrac and Jaccard. In weighted UniFrac their ellipses partly overlap.
+* Dispersion did not differ, except in unweighted UniFrac (p = 0.001).
 
 ---
 
-### B. Model 2: GJ_Control with Dual Treatments (`M(J), B, J`)
+## 3. Three-group models with one control
 
-![GJ_Control Single-Control Alpha Diversity](../assets/037_16S_GJControl_Alpha_Diversity.png)
+To see how the choice of control affects the comparison, each control group was analysed together with both treatments.
 
-![GJ_Control Single-Control Beta Diversity](../assets/038_16S_GJControl_Beta_Diversity.png)
+**GB_Control, GB_Treatment, GJ_Treatment**
 
-* **Alpha Diversity:** Global treatment effects remain statistically robust ($p < 10^{-12}$).
-* **Beta Diversity Topology:** The spatial affinity inverts: `GJ_Control` ($N=34$) clusters closer to `GJ_Treatment` ($N=34$) across all four distance matrices, while `GB_Treatment` ($N=33$) projects as the divergent lineage ($R^2 = 0.293$ in Bray-Curtis, $R^2 = 0.281$ in Unweighted UniFrac).
+![Alpha diversity with GB_Control](../assets/035_16S_GBControl_Alpha_Diversity.png)
 
-### Critical Methodological Verdict
-Single-control designs introduce severe asymmetric bias driven by shared temporal and batch-specific baselines:
-* Peat plugs cultivated during the Gijang B timeline share baseline drift specific to the GB cohort, drawing `GB_Control` closer to `GB_Treatment`.
-* Peat plugs cultivated during the Gyeongju timeline share baseline drift specific to the GJ cohort, drawing `GJ_Control` closer to `GJ_Treatment`.
-* **Conclusion:** Using a single control to benchmark both treatments violates experimental exchangeability. All differential abundance testing (ANCOM-BC2) and phenotypic modeling must implement synchronous pairing:
-  $$\Delta_{\text{GB}} = \text{GB\_Treatment} - \text{GB\_Control}$$
-  $$\Delta_{\text{GJ}} = \text{GJ\_Treatment} - \text{GJ\_Control}$$
+![Beta diversity with GB_Control](../assets/036_16S_GBControl_Beta_Diversity.png)
 
----
+**GJ_Control, GB_Treatment, GJ_Treatment**
 
-## 5. Taxonomic Composition & Rare Biosphere Expansion
+![Alpha diversity with GJ_Control](../assets/037_16S_GJControl_Alpha_Diversity.png)
 
-Taxonomic assignments from SILVA 138 were agglomerated to quantify community architecture across experimental conditions.
+![Beta diversity with GJ_Control](../assets/038_16S_GJControl_Beta_Diversity.png)
 
-![Phylum-Level Relative Abundance](../assets/039_16S_Phylum_Relative_Abundance.png)
+| Model | Distance | PERMANOVA R² | Dispersion p |
+| :--- | :--- | ---: | ---: |
+| with `GB_Control` | Bray–Curtis | 0.285 | 0.001 |
+| | Weighted UniFrac | 0.235 | 0.001 |
+| | Unweighted UniFrac | 0.268 | 0.001 |
+| | Jaccard | 0.221 | 0.001 |
+| with `GJ_Control` | Bray–Curtis | 0.293 | 0.004 |
+| | Weighted UniFrac | 0.250 | 0.001 |
+| | Unweighted UniFrac | 0.281 | 0.008 |
+| | Jaccard | 0.230 | 0.269 |
 
-### Phylum-Level Architecture
-* **Dominant Core:** The rhizosphere across all conditions is dominated by *Proteobacteria* ($26.0\%\text{--}29.8\%$), *Bacteroidota* ($13.2\%\text{--}15.2\%$), *Actinobacteriota* ($11.4\%\text{--}14.8\%$), *Planctomycetota* ($7.2\%\text{--}8.8\%$), *Verrucomicrobiota* ($7.1\%\text{--}8.3\%$), *Patescibacteria* ($6.1\%\text{--}7.4\%$), *Firmicutes* ($5.3\%\text{--}6.9\%$), *Chloroflexi* ($3.1\%\text{--}4.1\%$), *Acidobacteriota* ($2.3\%\text{--}3.1\%$), and *Myxococcota* ($2.1\%\text{--}2.8\%$).
-* **Treatment-Induced Dominance Dampening:** In both control cohorts, the top 10 phyla represent $\sim 94\%$ of total community abundance. Under soil suspension treatments (`GB_Treatment` and `GJ_Treatment`), the relative abundance of dominant phyla contracts, while the "Other" fraction expands.
+* All PERMANOVA p = 0.001. Kruskal–Wallis p ≤ 1.6 × 10⁻¹³ (with `GB_Control`) and ≤ 5.9 × 10⁻¹³ (with `GJ_Control`) for all four alpha metrics.
+* The relative positions of the groups depend on the metric. In unweighted UniFrac, the two treatments lie together on one side of PCoA 1 and the control on the other, whichever control is used. In Bray–Curtis, the control lies next to the treatment from the same experiment.
 
-![Genus-Level Relative Abundance](../assets/040_16S_Genus_Relative_Abundance.png)
+Because the two controls differ (Section 1), each treatment was compared with its own control in all later analyses:
 
-### Genus-Level Dynamics & Rare Taxa Recruitment
-* **Major Genus Distribution:** The top identified genera include `uncultured` ($10.5\%\text{--}13.2\%$), *Bacillus* ($3.2\%\text{--}5.1\%$), *Mucilaginibacter* ($2.1\%\text{--}2.9\%$), *Flavobacterium* ($2.2\%\text{--}2.8\%$), *Nocardioides*, *WD2101_soil_group*, *LWQ8*, *Massilia*, *Asticcacaulis*, *Streptomyces*, *CPla-3_termite_group*, and *BIrii41*.
-* **Contraction of Top Genera:** In `GB_Control` and `GJ_Control`, the top 12 genera account for **$33.6\%$ and $34.1\%$** of total abundance, leaving the unassigned "Other" fraction at $\sim 66\%$. In `GB_Treatment` and `GJ_Treatment`, the top 12 genera contract to **$29.5\%$ and $30.2\%$**, while the "Other" fraction expands to $> 70\%$.
-* **Biological Mechanism:** Soil inoculation does not trigger a monodominant bloom of individual opportunists. Instead, inoculating field soil into peat plugs delivers an extensive, low-abundance "rare biosphere" that establishes within the rhizosphere, diluting the relative dominance of basal peat taxa and significantly driving up total ASV richness.
-
----
-
-## 6. Differential Abundance Modeling via LinDA
-
-To identify specific bacterial taxa driving the divergence between uninoculated peat plugs and regional soil treatments, differential abundance testing was conducted using **LinDA** (Linear Models for Differential Abundance).
-
-### A. Methodological Justification: LinDA vs. Rank-Based Approaches
-Non-parametric rank-based methods (e.g., Wilcoxon rank-sum or ANCOM rank-based heuristics) frequently break down in deeply sequenced, zero-inflated microbiome datasets:
-* **Discrete Adjusted $p$-values:** Rank transformations across finite sample sizes produce tied test statistics and step-wise, discrete adjusted $p$-value distributions, obscuring the true significance gradient among highly abundant features.
-* **Continuous Variance Regularization:** LinDA models log-transformed relative abundances through linear regression with an empirical bias-correction step:
-  $$\log(Y_{ij} + c) = \alpha_i + \beta_i X_j + \gamma_i Z_j + e_{ij}$$
-  where $Y_{ij}$ is the relative abundance of ASV $i$ in sample $j$, $X_j$ is the primary treatment indicator, $Z_j$ represents batch covariates, and $c$ is a pseudo-count. LinDA estimates compositionality-induced bias across libraries, generating continuous, well-calibrated false discovery rates (FDR-adjusted $p$-values) and continuous effect sizes ($\text{Log}_2\text{ Fold Change}$).
-
-### B. Synchronous Pairwise Contrasts
-
-Differential testing was structured strictly within synchronous experimental cohorts to prevent timeline-driven batch confounding:
-1. **Gijang B Contrast:** `GB_Treatment (B)` vs. `GB_Control (M(B))` ($N = 33$ vs. $N = 33$)
-2. **Gyeongju Contrast:** `GJ_Treatment (J)` vs. `GJ_Control (M(J))` ($N = 34$ vs. $N = 34$)
-
-![B vs. M(B) Volcano Plot (LinDA)](../assets/041_16S_B_Volcano_Plot.png)
-
-![J vs. M(J) Volcano Plot (LinDA)](../assets/042_16S_J_Volcano_Plot.png)
-
-### C. Volcano Distribution Interpretation
-Both volcano profiles reveal an asymmetrical expansion of taxa following soil inoculation:
-* **Gijang B Biomarkers (Enriched in B):** High statistical significance ($-\log_{10}(\text{adj } p) > 40\text{--}60$) across large effect sizes ($\text{Log}_2\text{FC} > 3\text{--}6$). Top enriched lineages include *Acidibacter*, *Dongia*, *Gaiella*, *SC-I-84*, *Blastocatellaceae*, and deep clades of *Acidobacteriota* and *Proteobacteria*.
-* **Gyeongju Biomarkers (Enriched in J):** Demonstrates strong statistical enrichment for distinct soil taxa, including *Porphyrobacter*, *Rhodoplanes*, *AKYG1722*, *WD2101_soil_group*, *JGI_0001001-H03*, and *JG30-KF-CM45*.
-* **Peat Baseline Suppression (Enriched in Controls):** Control-enriched taxa represent baseline peat plug colonizers whose relative representation is suppressed or diluted following soil inoculation. These include *Haliangium*, *Bauldia*, *Nocardioides*, *Sphingomonadaceae*, *Pseudolabrys*, *Candidatus Solibacter*, and *Azospirillum*.
+* GB contrast: `GB_Treatment` vs `GB_Control`, written "B vs. M(B)".
+* GJ contrast: `GJ_Treatment` vs `GJ_Control`, written "J vs. M(J)".
 
 ---
 
-## 7. Comparative Heatmap Profiles (Global vs. Top 30 Biomarkers)
+## 4. Taxonomic composition
 
-To decouple shared soil-responsive taxa from region-specific colonizers, $\text{Log}_2\text{FC}$ effect vectors across both contrasts were hierarchically clustered.
+Relative abundances were computed per sample from the rarefied table and averaged per group. The 10 most abundant phyla and 12 most abundant genera (by overall mean, excluding unassigned) are shown; all other taxa were summed per sample into "Other" before averaging. Percentages below were read from the figures (about ±0.2 percentage points).
 
-![Global Heatmap of Differential Abundance (LinDA)](../assets/043_16S_Global_Heatmap.png)
+![Phylum-level relative abundance](../assets/039_16S_Phylum_Relative_Abundance.png)
 
-### Global Heatmap Partitioning
-The global heatmap partitions the responsive microbiome into four distinct regulatory quadrants:
-1. **Soil-Generalist Consortia (Co-Enriched):** Taxa displaying positive $\text{Log}_2\text{FC}$ in both `B vs. M(B)` and `J vs. M(J)`. These represent ubiquitous soil microorganisms capable of successfully invading and colonizing peat plug rhizospheres regardless of regional origin.
-2. **Gijang B Specific Colonizers:** Taxa displaying high positive $\text{Log}_2\text{FC}$ in B, but neutral or near-zero fold changes in J.
-3. **Gyeongju Specific Colonizers:** Taxa showing marked positive $\text{Log}_2\text{FC}$ in J, but remaining undetected or unaffected in B.
-4. **Peat-Resident Clades (Suppressed):** Features exhibiting negative $\text{Log}_2\text{FC}$ across both cohorts, reflecting outcompeted baseline peat taxa.
+* The 10 phyla account for about 94% of reads in every group.
+* Most abundant: Proteobacteria (26.2–30.2%), Bacteroidota (13.4–15.4%), Actinobacteriota (9.6–12.6%), Planctomycetota (8.2–9.8%) and Verrucomicrobiota (6.2–10.0%).
+* Firmicutes were lower in treated samples (GB: 8.8% control vs 4.2% treated; GJ: 7.6% vs 5.5%). Acidobacteriota were higher (GB: 1.6% vs 3.3%; GJ: 2.2% vs 4.8%).
 
----
+![Genus-level relative abundance](../assets/040_16S_Genus_Relative_Abundance.png)
 
-### Top 30 Feature Specificity
-
-![Top 30 Features by Minimum Adjusted p-value](../assets/044_16S_Top30_Heatmap.png)
-
-The 30 most significant features (ranked by minimum FDR-adjusted $p$-value across contrasts) isolate lineage-defining ASVs:
-
-| Feature Identifier | Taxonomic Annotation | Effect in B vs. M(B) | Effect in J vs. M(J) | Lineage Specificity |
-| :--- | :--- | :--- | :--- | :--- |
-| **8e3a6e** | *Chryseolinea* | $\text{Log}_2\text{FC} \approx +5.5$ | $\text{Log}_2\text{FC} \approx +2.1$ | Dual-Enriched (B-Biased) |
-| **c1b63a** | *Acidibacter* | $\text{Log}_2\text{FC} > +6.0$ | $\text{Log}_2\text{FC} \approx 0$ | **GB Exclusive** |
-| **d9c97d** | *uncultured (Micropepsaceae)* | $\text{Log}_2\text{FC} > +6.0$ | $\text{Log}_2\text{FC} \approx 0$ | **GB Exclusive** |
-| **30c05d** | *Phy. Proteobacteria* | $\text{Log}_2\text{FC} > +5.0$ | $\text{Log}_2\text{FC} > +4.5$ | Dual-Enriched Core |
-| **10a86d** | *Gaiella* | $\text{Log}_2\text{FC} > +5.5$ | $\text{Log}_2\text{FC} \approx 0$ | **GB Exclusive** |
-| **5279eb** | *Dongia* | $\text{Log}_2\text{FC} > +5.0$ | $\text{Log}_2\text{FC} \approx 0$ | **GB Exclusive** |
-| **d88314** | *Porphyrobacter* | $\text{Log}_2\text{FC} \approx +1.2$ | $\text{Log}_2\text{FC} > +6.0$ | **GJ Primary** |
-| **728228** | *Rhodoplanes* | $\text{Log}_2\text{FC} \approx 0$ | $\text{Log}_2\text{FC} > +5.5$ | **GJ Exclusive** |
-| **3230dc** | *Fam. Blastocatellaceae* | $\text{Log}_2\text{FC} \approx 0$ | $\text{Log}_2\text{FC} > +5.5$ | **GJ Exclusive** |
-| **0134d4** | *AKYG1722* | $\text{Log}_2\text{FC} \approx 0$ | $\text{Log}_2\text{FC} > +5.0$ | **GJ Exclusive** |
-| **6dcc96** | *JG30-KF-CM45* | $\text{Log}_2\text{FC} \approx 0$ | $\text{Log}_2\text{FC} > +5.0$ | **GJ Exclusive** |
-| **6cb5d0** | *WD2101_soil_group* | $\text{Log}_2\text{FC} \approx 0$ | $\text{Log}_2\text{FC} > +5.0$ | **GJ Exclusive** |
+* The largest named fraction is "uncultured" (11.0–14.0%), followed by *Bacillus* (2.0–4.6%) and *Mucilaginibacter* (1.4–3.6%).
+* *Bacillus* was lower in treated samples (GB: 4.6% vs 2.0%; GJ: 3.6% vs 2.6%).
+* The 12 genera account for 33.6% (`GB_Control`) and 34.5% (`GJ_Control`) of reads, but 29.7% (`GB_Treatment`) and 31.1% (`GJ_Treatment`). Treated samples thus have a larger share of reads outside the most abundant genera, in line with their higher number of observed features.
 
 ---
 
-## 8. Group-Exclusive Rare Biosphere Mining
+## 5. Differential abundance (LinDA)
 
-Standard differential abundance tests focus on relative abundance shifts among shared features. However, biological inocula also introduce "private" taxa that establish exclusively within a single treatment condition and remain entirely absent from uninoculated controls or competing soil treatments.
+LinDA (linear models for differential abundance; `MicrobiomeStat`) was run separately for the two contrasts, with the control as reference level:
 
-### A. Mathematical Filtering Criteria
-To prevent low-depth sequencing noise or spurious read misassignments from scoring as exclusive biomarkers, strict presence-absence filters were applied:
-1. **Intra-Group Presence:** Feature must be detected in $\ge 2$ biological replicates within the designated group ($N_{\text{detected}} \ge 2$).
-2. **Absolute Extra-Group Absence:** Feature abundance must equal zero ($N_{\text{count}} = 0$) across all other three experimental groups:
-   $$\text{Exclusive if } \text{Count}_G \ge 2 \quad \wedge \quad \sum_{G' \neq G} \text{Count}_{G'} = 0$$
+```r
+linda(feature.dat = counts_gb, meta.dat = meta_linda,
+      formula = "~ Treatment_Group", alpha = 0.05,
+      prev.filter = 0.10, mean.abund.filter = 0.0001)
+```
 
-![Exclusive Rare Taxa Audit Table](../assets/045_16S_Exclusive_Rare_Taxa_Table.png)
+* Input: the rarefied 16S table (27,000 reads per sample), subset to the samples of each contrast (33 vs 33 for GB; 34 vs 34 for GJ).
+* ASVs present in fewer than 10% of the samples of a contrast were removed (`prev.filter = 0.10`).
+* No set or batch term was included.
+* ASVs with FDR-adjusted p < 0.05 and |log2FC| ≥ 1 were called enriched.
 
-### B. High-Prevalence Private Biomarkers (Gijang B)
-Analysis of `Bacteria_16S_Exclusive_Rare_Taxa_Table.tsv` demonstrates that private taxa are not transient singletons, but represent permanently colonized, treatment-defining microbial consortia:
+![B vs. M(B) volcano plot](../assets/041_16S_B_Volcano_Plot.png)
 
-* **ASV `c1b63a` (*Acidibacter*):** Detected in **33 out of 33 samples (100% prevalence)** in `GB_Treatment`, with a mean relative abundance of $0.443\%$. Detected in 0 samples across `M(B)`, `M(J)`, and `J`.
-* **ASV `939b3c` (*Candidatus Adlerbacteria*):** Detected in **33 out of 33 samples (100% prevalence)** in `GB_Treatment` ($0.316\%$ mean abundance); completely absent in all other conditions.
-* **ASV `d9c97d` (*Micropepsaceae uncultured*):** Detected in **33 out of 33 samples (100% prevalence)** in `GB_Treatment` ($0.271\%$ mean abundance); completely absent in all other conditions.
-* **ASV `9382ad` (*Parcubacteria*):** Present in **29 of 33 samples (87.9% prevalence)** in `GB_Treatment` ($0.351\%$ mean abundance); absent across all other groups.
-* **ASV `285925` (*WD2101_soil_group*):** Present in **32 of 33 samples (97.0% prevalence)** in `GB_Treatment` ($0.182\%$ mean abundance); absent across all other groups.
+![J vs. M(J) volcano plot](../assets/042_16S_J_Volcano_Plot.png)
 
-### C. Biological Implications
-1. **Dispersion Dynamics:** The high prevalence ($85\%\text{--}100\%$) of multiple exclusive ASVs confirms that soil suspension inoculation successfully introduces and stabilizes exotic environmental taxa within the host rhizosphere.
-2. **Functional Differentiation:** Private taxa encompass specialized oligotrophic and plant-associated clades (*Acidibacter*, *Candidatus Adlerbacteria*, *Patescibacteria*, *Blastocatellaceae*, *Planctomycetota*). These private consortia provide a candidate microbial mechanism underlying the distinct host phenotypes (accelerated ripening in GB vs. enhanced vegetative volume in GJ).
+* In both contrasts, many more ASVs were enriched in the treated group than in the control. The strongest effects reached log2FC of about 6–9, with −log10(FDR) up to about 62 (B) and 67 (J).
+* **B vs. M(B):** labelled ASVs enriched in B include *Acidibacter*, *Dongia*, *Gaiella*, SC-I-84, a Blastocatellaceae ASV and ASVs classified only to Proteobacteria or Acidobacteriota. ASVs higher in the control include *Haliangium*, *Bauldia*, *Nocardioides*, a Sphingomonadaceae ASV and JG30-KF-CM45.
+* **J vs. M(J):** labelled ASVs enriched in J include *Porphyrobacter*, *Rhodoplanes*, AKYG1722, WD2101_soil_group, JGI_0001001-H03, JG30-KF-CM45 and a Blastocatellaceae ASV. ASVs higher in the control include Xanthobacteraceae and Sphingomonadaceae ASVs, *Pseudolabrys*, *Candidatus* Solibacter and *Azospirillum*.
+
+---
+
+## 6. Heatmaps of log2 fold changes
+
+![Global heatmap](../assets/043_16S_Global_Heatmap.png)
+
+* Rows: all ASVs with FDR < 0.05 and |log2FC| ≥ 1 (either direction) in at least one contrast. Rows are clustered (Euclidean distance, complete linkage). Values are clamped to ±8.
+* An ASV missing from one contrast's output (for example because it was removed by the prevalence filter) is shown as 0 (`values_fill = 0`). A white cell can therefore mean "no change" or "not tested".
+* The heatmap shows ASVs that are higher in both treatments, ASVs that are higher in only one treatment, and smaller groups of ASVs that are lower in one or both treatments.
+
+![Top 30 heatmap](../assets/044_16S_Top30_Heatmap.png)
+
+The top 30 ASVs have the smallest FDR (< 0.05) in either contrast; no fold-change cut-off is applied, and ties are broken by mean relative abundance across all 134 bacterial samples. Rows are sorted by the B vs. M(B) log2FC and are not clustered. Selected values, read from the colour scale (about ±0.2; values of 8 or more are clamped):
+
+| ASV | Taxon | log2FC, B vs. M(B) | log2FC, J vs. M(J) |
+| :--- | :--- | ---: | ---: |
+| `8e3a6e` | *Chryseolinea* | ≥ 7.9 | 4.1 |
+| `c1b63a` | *Acidibacter* | ≥ 7.9 | 0 |
+| `d9c97d` | uncultured (Micropepsaceae) | ≥ 7.9 | 0 |
+| `30c05d` | Proteobacteria (unclassified below phylum) | 7.8 | 6.6 |
+| `10a86d` | *Gaiella* | 7.7 | 6.4 |
+| `5279eb` | *Dongia* | 7.4 | 0 |
+| `d88314` | *Porphyrobacter* | 5.9 | 7.7 |
+| `728228` | *Rhodoplanes* | 5.4 | 6.4 |
+| `3230dc` | Blastocatellaceae | 1.5 | 7.8 |
+| `0134d4` | AKYG1722 | 0 | 5.9 |
+| `6dcc96` | JG30-KF-CM45 | 0 | 6.4 |
+| `6cb5d0` | WD2101_soil_group | 0 | 7.9 |
+
+A value of 0 means that the ASV was not in that contrast's output or had a fold change near 0.
+
+---
+
+## 7. Group-exclusive ASVs
+
+An ASV was called exclusive to a group if it was detected in at least 2 samples of that group and in no sample of the other three groups (rarefied table). The full list was saved as `Bacteria_16S_Exclusive_Rare_Taxa_Table.tsv`; Figure 045 is a screenshot of this table.
+
+![Exclusive ASV table](../assets/045_16S_Exclusive_Rare_Taxa_Table.png)
+
+Most abundant ASVs exclusive to `GB_Treatment`:
+
+| ASV | Taxon | Samples detected (of 33) | Mean relative abundance in `GB_Treatment` |
+| :--- | :--- | :--- | ---: |
+| `c1b63a` | *Acidibacter* | 33 (100%) | 0.433% |
+| `938ad4` | Parcubacteria | 29 (87.9%) | 0.351% |
+| `939b3c` | *Candidatus* Adlerbacteria | 33 (100%) | 0.316% |
+| `d9c97d` | uncultured (Micropepsaceae) | 33 (100%) | 0.271% |
+| `285925` | WD2101_soil_group | 32 (97.0%) | 0.182% |
+
+These ASVs were found in most or all GB-treated plants but in no control or GJ-treated sample at a depth of 27,000 reads. This is consistent with their introduction by the GB soil suspension. The soil suspensions themselves are not among the sequenced samples, and whether these taxa relate to the plant phenotypes was not tested.
