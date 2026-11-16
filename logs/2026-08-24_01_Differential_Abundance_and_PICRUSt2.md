@@ -1,11 +1,12 @@
 # Differential Abundance (LinDA) and PICRUSt2 Pathways (N = 110)
 
 **Date:** 2026-08-24
+**Updated:** 2026-11-16 (Sections 1–3 rerun on the unrarefied table; Figures 078–084 replaced)
 **Stage:** LinDA for each contrast; most enriched and depleted ASVs; fold-change heatmap; group-exclusive ASVs; differential abundance of PICRUSt2 pathways; pathway heatmap
 **Cohort:** five batches, original labels; N = 110 (`GB_Control` 33, `GB_Treatment` 33, `GJ_Control` 22, `GJ_Treatment` 22). The exclusive-ASV table (Section 4) is from the six-batch set (N = 134).
 **Script:** `modules/13_linda_and_picrust2_functional.R`; the same code is in `pipeline/run_analysis.R` (sections 4-1 to "PICRUSt2 Sample-Level Heatmap")
 **Platform:** R 4.6.1 (`aarch64-apple-darwin23`)
-**Input:** `07_diversity_16S/core_metrics/rarefied_table.qza`, `05_taxonomy_16S/taxonomy_16S.qza`, `picrust2_out_16S/pathways_out/path_abun_unstrat.tsv.gz`, `metadata_P_generation.tsv`
+**Input:** `05_taxonomy_16S/table_16S_clean.qza` (Sections 1–3), `07_diversity_16S/core_metrics/rarefied_table.qza` (Section 4), `05_taxonomy_16S/taxonomy_16S.qza`, `picrust2_out_16S/pathways_out/path_abun_unstrat.tsv.gz`, `metadata_P_generation.tsv`
 
 ---
 
@@ -16,50 +17,62 @@ Each treatment was compared with its own control (GB: 33 vs 33; GJ: 22 vs 22), w
 ```r
 set.seed(42)
 linda_res <- linda(
-  feature.dat = counts_gb,      # rarefied counts, GB samples only
+  feature.dat = counts_gb,      # unrarefied counts, GB samples only
   meta.dat = meta_linda,
   formula = "~ Treatment_Group",
   alpha = 0.05,
   prev.filter = 0.10,
-  mean.abund.filter = 0.0001
+  mean.abund.filter = 0.0001,
+  adaptive = FALSE,
+  zero.handling = "imputation"
 )
 ```
 
-* Input: the rarefied 16S table (27,000 reads per sample).
+* Input: the unrarefied, taxonomy-filtered 16S table (`05_taxonomy_16S/table_16S_clean.qza`; 27,237–156,196 reads per sample). LinDA corrects for read depth itself, so the rarefied table is not needed.
+* Zeros were imputed (`zero.handling = "imputation"`). Treated samples had fewer reads than their controls (median 69,404 vs 78,025 in GB; 50,307 vs 79,835 in GJ), and LinDA's own check (the default `adaptive = TRUE`) selected imputation in both contrasts. With `adaptive = TRUE`, MicrobiomeStat 1.4 printed "Imputation approach is used.", but its results differed from a run with imputation set explicitly (21 GB and 57 GJ ASVs changed their call). Imputation was therefore set explicitly (`adaptive = FALSE`).
 * ASVs present in fewer than 10% of the samples of a contrast were removed (`prev.filter = 0.10`).
 * No set or batch term was included in the model.
 * ASVs with FDR-adjusted p < 0.05 and log2FC ≥ 1 were called enriched in the treatment; those with FDR < 0.05 and log2FC ≤ −1 were called enriched in the control (depleted).
+* Full results were written to `LinDA_ASV_GB_Treatment_vs_GB_Control.csv` and `LinDA_ASV_GJ_Treatment_vs_GJ_Control.csv` (not in the repository).
+
+| | GB | GJ |
+| :--- | ---: | ---: |
+| ASVs tested | 1,496 | 1,358 |
+| Enriched in the treatment | 735 | 698 |
+| Enriched in the control (depleted) | 121 | 99 |
 
 ![B vs. M(B) volcano plot](../assets/078_16S_GB_Volcano_Plot.png)
 
 ![J vs. M(J) volcano plot](../assets/079_16S_GJ_Volcano_Plot.png)
 
 * In both contrasts, many more ASVs were enriched in the treated group than in the control.
-* **GB (Figure 078):** −log10(FDR) up to about 62, with log2FC up to about 9. Labelled enriched ASVs: *Acidibacter*, *Dongia*, *Chryseolinea*, *Gaiella*, SC-I-84, a Blastocatellaceae ASV, an "uncultured" ASV and an ASV classified only to Proteobacteria. Labelled depleted ASVs: *Haliangium*, *Bauldia*, *Nocardioides*, a Sphingomonadaceae ASV, JG30-KF-CM45 and "uncultured" ASVs.
-* **GJ (Figure 079):** −log10(FDR) up to about 48. Labelled enriched ASVs: *Porphyrobacter*, *Dokdonella*, *Pseudolabrys*, WD2101_soil_group, *Sphingomonas*, *Gemmatimonas*, Pir4_lineage and JGI_0001001-H03. Labelled depleted ASVs: Xanthobacteraceae, Sphingomonadaceae and Devosiaceae ASVs, *Parafilimonas*, *Anaeromyxobacter*, *Candidatus* Solibacter, and other *Pseudolabrys* and *Acidibacter* ASVs.
+* **GB (Figure 078):** −log10(FDR) up to 65.7; log2FC from −4.2 to 10.5. Labelled enriched ASVs: an "uncultured" ASV, an ASV classified only to Proteobacteria, *Acidibacter*, *Dongia*, SC-I-84, a Blastocatellaceae ASV, *Gaiella* and Saccharimonadales. Labelled depleted ASVs: two JG30-KF-CM45 ASVs, *Haliangium*, *Nocardioides*, a Sphingomonadaceae ASV, *Bauldia* and two "uncultured" ASVs.
+* **GJ (Figure 079):** −log10(FDR) up to 53.8; log2FC from −5.4 to 11.0. Labelled enriched ASVs: *Porphyrobacter*, JGI_0001001-H03, *Pseudolabrys*, *Gemmatimonas*, Pir4_lineage, *Dokdonella*, WD2101_soil_group and *Sphingomonas*. Labelled depleted ASVs: Xanthobacteraceae, Sphingomonadaceae and Devosiaceae ASVs, *Pseudolabrys*, *Acidibacter*, *Anaeromyxobacter*, *Parafilimonas* and an "uncultured" ASV.
+
+**Earlier version.** Until 2026-11-16, Sections 1–3 used the rarefied table (27,000 reads per sample, about 37% of the clean reads) with LinDA's default zero handling. The overall pattern and most labelled taxa were the same; the numbers of significant ASVs were not recorded.
 
 ---
 
 ## 2. Most enriched and most depleted ASVs
 
-For each contrast, the 20 enriched ASVs with the largest log2FC and the 20 depleted ASVs with the most negative log2FC are shown as relative abundance per sample. ASV IDs are given as their first five characters.
+For each contrast, the 20 enriched ASVs with the largest log2FC and the 20 depleted ASVs with the most negative log2FC are shown as relative abundance per sample (unrarefied table). ASV IDs are given as their first five characters.
 
 ![Top 20 enriched ASVs, GB](../assets/080_16S_GB_Top20_LargeShift_Taxa_Boxplot.png)
 
 ![Top 20 enriched ASVs, GJ](../assets/081_16S_GJ_Top20_LargeShift_Taxa_Boxplot.png)
 
-* **GB (Figure 080):** for example *Chryseolinea* (`8e3a6`), *Acidibacter* (`c1b63`), "uncultured" (`d9c97`), *Candidatus* Adlerbacteria (`939b3`), BIrii41 (`1b36c`), *Cerasicoccus* (`21f4c`) and *Terrimonas* (`7e4b8`). In `GB_Control` these ASVs were absent or present at low levels; the highest control values, about 0.15%, were for WD2101_soil_group (`744f6`) and *Lacunisphaera* (`f65a2`).
-* **GJ (Figure 081):** for example WD2101_soil_group (`6cb5d`), Blastocatellaceae (`64c85`, `3230d`), *Streptomyces* (`93120`), *Pseudolabrys* (`4ea1e`), *Candidatus* Kaiserbacteria (`adc5e`), Parcubacteria (`4f235`), *Dokdonella* (`df21d`) and *Porphyrobacter* (`d8831`). In `GJ_Control` these ASVs were absent or present at about 0.05% or less in a few samples.
+* **GB (Figure 080):** for example *Chryseolinea* (`8e3a6`), *Acidibacter* (`c1b63`), "uncultured" (`d9c97`), *Candidatus* Adlerbacteria (`939b3`), BIrii41 (`1b36c`), *Cerasicoccus* (`21f4c`) and *Terrimonas* (`7e4b8`). Ten of the 20 ASVs were not detected in any `GB_Control` sample, and the others were found in at most 5 of 33 controls; the highest control value was 0.14% (*Lacunisphaera*, `f65a2`). All 20 were present in at least 32 of the 33 treated plants.
+* **GJ (Figure 081):** for example WD2101_soil_group (`6cb5d`), Blastocatellaceae (`64c85`, `3230d`), *Streptomyces* (`93120`), *Pseudolabrys* (`4ea1e`), *Candidatus* Kaiserbacteria (`adc5e`), Parcubacteria (`4f235`), *Dokdonella* (`df21d`) and *Porphyrobacter* (`d8831`). Fifteen of the 20 ASVs were not detected in any `GJ_Control` sample, and the others were found in at most 4 of 22 controls, at 0.04% or less. All 20 were present in at least 21 of the 22 treated plants.
 
-These ASVs were absent or rare in the controls and present in most treated plants. This is consistent with their introduction by the soil suspensions. The soil suspensions themselves are not among the sequenced samples, so their source is not shown directly.
+These ASVs were absent or rare in the controls and present in almost all treated plants. This is consistent with their introduction by the soil suspensions. The soil suspensions themselves are not among the sequenced samples, so their source is not shown directly.
 
 ![Top 20 depleted ASVs, GB](../assets/082_16S_GB_Top20_N_LargeShift_Taxa_Boxplot.png)
 
 ![Top 20 depleted ASVs, GJ](../assets/083_16S_GJ_Top20_N_LargeShift_Taxa_Boxplot.png)
 
-* **GB (Figure 082):** for example Sphingomonadaceae (`059bb`, `04c66`), *Haliangium* (`88d07`), *Bauldia* (`6a8af`, `62e24`), *Nocardioides* (`d4ce3`, `5375e`, `9785a`), JG30-KF-CM45 (`aeb74`, `fabea`) and *Parafilimonas* (`487ed`).
+* **GB (Figure 082):** for example Sphingomonadaceae (`059bb`, `04c66`), *Haliangium* (`88d07`), *Bauldia* (`6a8af`, `62e24`), *Nocardioides* (`d4ce3`, `5375e`), JG30-KF-CM45 (`aeb74`, `fabea`) and *Parafilimonas* (`487ed`).
 * **GJ (Figure 083):** for example Sphingomonadaceae (`04c66`, `059bb`, `07822`), Xanthobacteraceae (`f8ce1`), Devosiaceae (`430ec`), *Gemmata* (`73c81`), *Parafilimonas* (`487ed`), *Pseudolabrys* (`e038b`) and *Candidatus* Solibacter (`36ff8`).
-* Some depleted ASVs were not detected in any treated sample (for example *Nocardioides* `d4ce3`, JG30-KF-CM45 `fabea` and "uncultured" `24bdb` in GB; Xanthobacteraceae `f8ce1` in GJ). Others remained at low levels in some treated plants (for example Sphingomonadaceae `059bb`, up to about 0.09% in GB).
+* Some depleted ASVs were not detected in any treated sample (GB: "uncultured" `24bdb`, *Nocardioides* `d4ce3`, JG30-KF-CM45 `fabea` and Rhizobiaceae `3eb74`; GJ: Xanthobacteraceae `f8ce1` and *Pseudolabrys* `e038b`). Others remained at low levels in some treated plants (for example Sphingomonadaceae `059bb`, in 7 of 33 GB-treated plants at up to 0.07%).
 * Relative abundances cannot distinguish a loss of these taxa from dilution by the taxa added with the soil.
 
 ---
@@ -68,9 +81,9 @@ These ASVs were absent or rare in the controls and present in most treated plant
 
 ![LinDA heatmap](../assets/084_16S_Heatmap.png)
 
-* Rows: all ASVs enriched or depleted (FDR < 0.05, |log2FC| ≥ 1) in at least one contrast. Rows are clustered (Euclidean distance, complete linkage); values are clamped to ±8.
+* Rows: the 1,373 ASVs enriched or depleted (FDR < 0.05, |log2FC| ≥ 1) in at least one contrast. Rows are clustered (Euclidean distance, complete linkage); values are clamped to ±8.
 * An ASV missing from one contrast's output (for example because it was removed by the prevalence filter) is shown as 0 (`values_fill = 0`). A white cell can therefore mean "no change" or "not tested".
-* The largest block contains ASVs that are higher in `GB_Treatment` only. Other blocks contain ASVs higher in `GJ_Treatment` only, ASVs higher in both treatments, and smaller groups of ASVs lower in one or both treatments.
+* The largest groups are ASVs enriched only in `GB_Treatment` (484) and only in `GJ_Treatment` (447), followed by ASVs enriched in both treatments (247). Most ASVs in the one-contrast groups were not tested in the other contrast (432 of the 484 and 387 of the 447). Smaller groups are depleted in GB only (92), in GJ only (70) or in both (25); 8 ASVs changed in opposite directions.
 
 ---
 

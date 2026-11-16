@@ -32,7 +32,7 @@ message("=== [", format(Sys.time(), "%T"), "] Initializing LinDA and PICRUSt2 Fu
 
 # Verify core inputs
 meta_file <- "metadata_P_generation.tsv"
-table_file <- "07_diversity_16S/core_metrics/rarefied_table.qza"
+table_file <- "05_taxonomy_16S/table_16S_clean.qza"  # unrarefied counts; LinDA corrects for read depth itself
 tax_file   <- "05_taxonomy_16S/taxonomy_16S.qza"
 path_file  <- "picrust2_out_16S/pathways_out/path_abun_unstrat.tsv.gz"
 
@@ -95,7 +95,9 @@ linda_res_gb <- linda(
   formula           = "~ Treatment_Group",
   alpha             = 0.05,
   prev.filter       = 0.10,
-  mean.abund.filter = 0.0001
+  mean.abund.filter = 0.0001,
+  adaptive          = FALSE,  # zeros imputed; set explicitly (log 2026-08-24_01, Section 1)
+  zero.handling     = "imputation"
 )
 
 df_gb <- linda_res_gb$output$Treatment_GroupGB_Treatment %>%
@@ -118,6 +120,8 @@ volcano_df_gb <- df_gb %>%
       TRUE                                            ~ paste("Phy.", Phylum)
     )
   )
+
+write_csv(volcano_df_gb, "tables/LinDA_ASV_GB_Treatment_vs_GB_Control.csv")
 
 top_labels_gb <- volcano_df_gb %>%
   filter(Significance != "Not Significant") %>%
@@ -253,7 +257,9 @@ linda_res_gj <- linda(
   formula           = "~ Treatment_Group",
   alpha             = 0.05,
   prev.filter       = 0.10,
-  mean.abund.filter = 0.0001
+  mean.abund.filter = 0.0001,
+  adaptive          = FALSE,  # zeros imputed; set explicitly (log 2026-08-24_01, Section 1)
+  zero.handling     = "imputation"
 )
 
 df_gj <- linda_res_gj$output$Treatment_GroupGJ_Treatment %>%
@@ -276,6 +282,8 @@ volcano_df_gj <- df_gj %>%
       TRUE                                            ~ paste("Phy.", Phylum)
     )
   )
+
+write_csv(volcano_df_gj, "tables/LinDA_ASV_GJ_Treatment_vs_GJ_Control.csv")
 
 top_labels_gj <- volcano_df_gj %>%
   filter(Significance != "Not Significant") %>%

@@ -1839,7 +1839,7 @@ meta_gb <- read_tsv("metadata_P_generation.tsv") %>%
 # ==============================================================================
 # 2. Import Feature Table & Taxonomy Artifacts
 # ==============================================================================
-counts_raw <- read_qza("07_diversity_16S/core_metrics/rarefied_table.qza")$data
+counts_raw <- read_qza("05_taxonomy_16S/table_16S_clean.qza")$data  # unrarefied counts; LinDA corrects for read depth itself
 tax_raw    <- read_qza("05_taxonomy_16S/taxonomy_16S.qza")$data
 
 tax_clean <- parse_taxonomy(tax_raw) %>%
@@ -1867,7 +1867,9 @@ linda_res <- linda(
   formula = "~ Treatment_Group",
   alpha = 0.05,
   prev.filter = 0.10,
-  mean.abund.filter = 0.0001
+  mean.abund.filter = 0.0001,
+  adaptive          = FALSE,  # zeros imputed; set explicitly (log 2026-08-24_01, Section 1)
+  zero.handling     = "imputation"
 )
 
 # Extract comparison results (GB_Treatment vs baseline GB_Control)
@@ -1993,6 +1995,16 @@ top20_shift_taxa <- volcano_df %>%
 # ==============================================================================
 # 2. Subset Abundance Table & Format Metadata
 # ==============================================================================
+# Figure 080: relative abundance from counts_gb (unrarefied), the same way the Depleted section builds rel_abund_gb
+rel_abund_long <- counts_gb %>%
+  as.data.frame() %>%
+  rownames_to_column("Feature.ID") %>%
+  pivot_longer(-Feature.ID, names_to = "sample-id", values_to = "Count") %>%
+  group_by(`sample-id`) %>%
+  mutate(RelAbund = (Count / sum(Count)) * 100) %>%
+  ungroup() %>%
+  inner_join(meta_gb, by = "sample-id")
+
 target_abund_df <- rel_abund_long %>%
   filter(
     Treatment_Group %in% c("GB_Control", "GB_Treatment"),
@@ -2209,7 +2221,7 @@ meta_gj <- read_tsv("metadata_P_generation.tsv") %>%
 # ==============================================================================
 # 2. Import Feature Table & Taxonomy Artifacts
 # ==============================================================================
-counts_raw <- read_qza("07_diversity_16S/core_metrics/rarefied_table.qza")$data
+counts_raw <- read_qza("05_taxonomy_16S/table_16S_clean.qza")$data  # unrarefied counts; LinDA corrects for read depth itself
 tax_raw    <- read_qza("05_taxonomy_16S/taxonomy_16S.qza")$data
 
 tax_clean <- parse_taxonomy(tax_raw) %>%
@@ -2237,7 +2249,9 @@ linda_res <- linda(
   formula = "~ Treatment_Group",
   alpha = 0.05,
   prev.filter = 0.10,
-  mean.abund.filter = 0.0001
+  mean.abund.filter = 0.0001,
+  adaptive          = FALSE,  # zeros imputed; set explicitly (log 2026-08-24_01, Section 1)
+  zero.handling     = "imputation"
 )
 
 # Extract comparison results (GJ_Treatment vs baseline GJ_Control)
@@ -2579,7 +2593,7 @@ meta_raw <- read_tsv("metadata_P_generation.tsv") %>%
   filter(`sample-id` != "#q2:types") %>%
   filter(Domain == "Bacteria")
 
-counts_raw <- read_qza("07_diversity_16S/core_metrics/rarefied_table.qza")$data
+counts_raw <- read_qza("05_taxonomy_16S/table_16S_clean.qza")$data  # unrarefied counts; LinDA corrects for read depth itself
 
 # ==============================================================================
 # 2. Run LinDA Differential Abundance Analysis
@@ -2601,7 +2615,9 @@ linda_gb <- linda(
   formula           = "~ Treatment_Group",
   alpha             = 0.05,
   prev.filter       = 0.10,
-  mean.abund.filter = 0.0001
+  mean.abund.filter = 0.0001,
+  adaptive          = FALSE,  # zeros imputed; set explicitly (log 2026-08-24_01, Section 1)
+  zero.handling     = "imputation"
 )
 
 df_gb <- linda_gb$output$Treatment_GroupGB_Treatment %>%
@@ -2630,7 +2646,9 @@ linda_gj <- linda(
   formula           = "~ Treatment_Group",
   alpha             = 0.05,
   prev.filter       = 0.10,
-  mean.abund.filter = 0.0001
+  mean.abund.filter = 0.0001,
+  adaptive          = FALSE,  # zeros imputed; set explicitly (log 2026-08-24_01, Section 1)
+  zero.handling     = "imputation"
 )
 
 df_gj <- linda_gj$output$Treatment_GroupGJ_Treatment %>%

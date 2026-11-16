@@ -110,7 +110,7 @@ Steps 1–6 were run in QIIME 2 2024.10; steps 7–10 in R 4.6.1 unless stated. 
 5. **16S tree** with MAFFT and FastTree, midpoint-rooted (`align-to-tree-mafft-fasttree`). No ITS2 tree.
 6. **Rarefaction and core diversity metrics:** 27,000 reads per sample (16S) and 8,600 (ITS2).
 7. **Alpha and beta diversity:** observed features, Shannon, Gini–Simpson and Faith's PD; Kruskal–Wallis tests with FDR-adjusted pairwise Wilcoxon tests. PCoA (`cmdscale`) and NMDS (`vegan::metaMDS`, k = 2). PERMANOVA (`vegan::adonis2`, `~ Treatment_Group`, 999 permutations, `set.seed(42)`) and dispersion tests (`betadisper`, `permutest`).
-8. **Differential abundance of ASVs** with LinDA (`MicrobiomeStat::linda`) on the rarefied table, `~ Treatment_Group`, separately for `GB_Treatment` vs `GB_Control` and `GJ_Treatment` vs `GJ_Control`. ASVs in fewer than 10% of samples were removed (`prev.filter = 0.10`, `mean.abund.filter = 0.0001`). Significance: FDR < 0.05 and |log2FC| ≥ 1. The model has no batch or set term.
+8. **Differential abundance of ASVs** with LinDA (`MicrobiomeStat::linda`) on the unrarefied, taxonomy-filtered table from step 4, `~ Treatment_Group`, separately for `GB_Treatment` vs `GB_Control` and `GJ_Treatment` vs `GJ_Control`. Zeros were imputed (`zero.handling = "imputation"`, `adaptive = FALSE`) because treated samples had fewer reads than their controls. ASVs in fewer than 10% of samples were removed (`prev.filter = 0.10`, `mean.abund.filter = 0.0001`). Significance: FDR < 0.05 and |log2FC| ≥ 1. The model has no batch or set term.
 9. **Functional prediction** with PICRUSt2 from the unrarefied, taxonomy-filtered 16S table (27,767 ASVs): EPA-ng placement, castor maximum-parsimony prediction, NSTI cut-off 2.0 (171 ASVs excluded), MetaCyc pathways. Pathways were compared with LinDA (`~ Treatment_Group`, `prev.filter = 0.1`, `zero.handling = "pseudo-count"`). `ggpicrust2` was used only to add pathway names.
 10. **Taxonomic composition:** mean relative abundance per group from phylum to genus (rarefied table).
 
@@ -132,7 +132,7 @@ Steps 1–6 were run in QIIME 2 2024.10; steps 7–10 in R 4.6.1 unless stated. 
 * Dispersion also differed between groups (betadisper p ≤ 0.002 in all eight tests), so these R² values include differences in spread as well as in group centres.
 * The two control groups differed in composition (six-batch standard set: R² 0.08–0.11, p = 0.001). Each treatment was therefore compared with its own control.
 
-**Differential abundance (LinDA).** In both contrasts, many more ASVs were enriched in the treated group than in the control. Most of the strongest enriched ASVs were absent or rare in the controls (for example *Acidibacter*, *Chryseolinea* and *Candidatus* Adlerbacteria in GB; WD2101_soil_group, Blastocatellaceae and *Porphyrobacter* in GJ).
+**Differential abundance (LinDA).** In both contrasts, many more ASVs were enriched in the treated group than in the control (GB: 735 vs 121 ASVs; GJ: 698 vs 99). Most of the strongest enriched ASVs were absent or rare in the controls (for example *Acidibacter*, *Chryseolinea* and *Candidatus* Adlerbacteria in GB; WD2101_soil_group, Blastocatellaceae and *Porphyrobacter* in GJ).
 
 **Taxonomic composition.** Both treated groups had less Firmicutes and more Acidobacteriota and Chloroflexi than their controls. In most plots from class to genus level, the most abundant taxa made up a smaller share of reads in treated samples.
 
@@ -146,7 +146,6 @@ Steps 1–6 were run in QIIME 2 2024.10; steps 7–10 in R 4.6.1 unless stated. 
 
 * **Unbalanced and partly confounded design.** The GJ groups have 22 samples from two batches; the GB groups have 33 from three. Each batch contains one treated and one control set, and the GB and GJ experiments were grown at different times. GB vs GJ comparisons therefore mix soil origin with experiment (time), and set-to-set differences are visible in several analyses (2026-07-23_02, 2026-08-10_01, 2026-08-24_01). No model includes a set or batch term.
 * **Metadata column name.** The column `Sequencing_Batch` holds the set code (`B1`, `M1`, …), not the batch name (`GB1`, …).
-* **LinDA input.** LinDA was run on the rarefied table (Section 4, step 8).
 * **Exploratory logs.** Logs 2026-07-24_02 and 2026-07-25_01 use PCoA-derived labels. They are kept as a record and are not used for the final results.
 
 ---
