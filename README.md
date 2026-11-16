@@ -145,8 +145,6 @@ Steps 1–6 were run in QIIME 2 2024.10; steps 7–10 in R 4.6.1 unless stated. 
 ## 6. Limitations and open points
 
 * **Unbalanced and partly confounded design.** The GJ groups have 22 samples from two batches; the GB groups have 33 from three. Each batch contains one treated and one control set, and the GB and GJ experiments were grown at different times. GB vs GJ comparisons therefore mix soil origin with experiment (time), and set-to-set differences are visible in several analyses (2026-07-23_02, 2026-08-10_01, 2026-08-24_01). No model includes a set or batch term.
-* **Metadata column name.** The column `Sequencing_Batch` holds the set code (`B1`, `M1`, …), not the batch name (`GB1`, …).
-* **Exploratory logs.** Logs 2026-07-24_02 and 2026-07-25_01 use PCoA-derived labels. They are kept as a record and are not used for the final results.
 
 ---
 
