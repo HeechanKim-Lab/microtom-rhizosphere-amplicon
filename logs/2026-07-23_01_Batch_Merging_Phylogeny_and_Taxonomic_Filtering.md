@@ -144,7 +144,7 @@ The same filter was applied to `table_ITS_clean.qza`. Both sets were later repla
 
 * Reads per library: mean 72,938, median 75,637, interquartile range 58,091–83,781, minimum 27,915, maximum 160,800.
 * The distribution has its main peak at about 70,000–90,000 reads and a lower shoulder at 30,000–70,000 reads.
-* The smallest library (27,915 reads) set the upper limit for the 16S rarefaction depth (27,000 reads; see 2026-07-23_02).
+* The smallest library (`B_M4-9`) set the upper limit for the 16S rarefaction depth (27,000 reads; see 2026-07-23_02): 27,237 reads after taxonomy filtering (27,915 before).
 
 ![Reads per ASV](../assets/008_table_16S_merged.qzv.png)
 

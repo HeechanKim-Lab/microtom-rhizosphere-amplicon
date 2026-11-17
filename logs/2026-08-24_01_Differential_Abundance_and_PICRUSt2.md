@@ -3,7 +3,7 @@
 **Date:** 2026-08-24
 **Updated:** 2026-11-16 (Sections 1–3 rerun on the unrarefied table; Figures 078–084 replaced)
 **Stage:** LinDA for each contrast; most enriched and depleted ASVs; fold-change heatmap; group-exclusive ASVs; differential abundance of PICRUSt2 pathways; pathway heatmap
-**Cohort:** five batches, original labels; N = 110 (`GB_Control` 33, `GB_Treatment` 33, `GJ_Control` 22, `GJ_Treatment` 22). The exclusive-ASV table (Section 4) is from the six-batch set (N = 134).
+**Cohort:** five batches, original labels; N = 110 (`GB_Control` 33, `GB_Treatment` 33, `GJ_Control` 22, `GJ_Treatment` 22).
 **Script:** `modules/13_linda_and_picrust2_functional.R`; the same code is in `pipeline/run_analysis.R` (sections 4-1 to "PICRUSt2 Sample-Level Heatmap")
 **Platform:** R 4.6.1 (`aarch64-apple-darwin23`)
 **Input:** `05_taxonomy_16S/table_16S_clean.qza` (Sections 1–3), `07_diversity_16S/core_metrics/rarefied_table.qza` (Section 4), `05_taxonomy_16S/taxonomy_16S.qza`, `picrust2_out_16S/pathways_out/path_abun_unstrat.tsv.gz`, `metadata_P_generation.tsv`
@@ -91,19 +91,15 @@ These ASVs were absent or rare in the controls and present in almost all treated
 
 ![Exclusive ASV table](../assets/088_16S_Exclusive_Rare_Taxa_Table.png)
 
-> **Note.** Figure 088 is the same file as Figure 045 (identical content). It shows the table from the six-batch set with reassigned labels (N = 134; 2026-07-25_01), not the N = 110 set. `pipeline/run_analysis.R` contains an N = 110 version of this step, but its output has not been added to the repository.
-
 Definition: an ASV detected in at least 2 samples of one group and in no sample of the other three groups.
 
 | ASV | Taxon | Samples detected in `GB_Treatment` (of 33) | Mean relative abundance in `GB_Treatment` |
 | :--- | :--- | :--- | ---: |
-| `c1b63a` | *Acidibacter* | 33 (100%) | 0.433% |
+| `c1b63a` | *Acidibacter* | 33 (100%) | 0.429% |
 | `938ad4` | Parcubacteria | 29 (87.9%) | 0.351% |
-| `939b3c` | *Candidatus* Adlerbacteria | 33 (100%) | 0.316% |
-| `d9c97d` | uncultured (Micropepsaceae) | 33 (100%) | 0.271% |
-| `285925` | WD2101_soil_group | 32 (97.0%) | 0.182% |
-
-The GB groups are the same in both sets, and the N = 110 GJ samples are a subset of the N = 134 GJ samples. Similar `GB_Treatment` results are therefore expected for N = 110, but the N = 110 table is a separate rarefaction, so the exact values may differ.
+| `939b3c` | *Candidatus* Adlerbacteria | 33 (100%) | 0.308% |
+| `1b36c5` | BIrii41 | 32 (97.0%) | 0.279% |
+| `d9c97d` | uncultured (Micropepsaceae) | 33 (100%) | 0.267% |
 
 ---
 

@@ -28,8 +28,8 @@ qiime diversity core-metrics \
 
 The same commands were run on the standard tables (output folders `standard/`).
 
-* **16S depth, 27,000 reads:** just below the smallest library in the merged table (27,915 reads; 2026-07-23_01). All 134 libraries were retained (group sizes in Figures 017 and 029 add up to 134).
-* **ITS2 depth, 8,600 reads:** the logs do not record how this depth was chosen or how many ITS2 libraries were retained.
+* **16S depth, 27,000 reads:** just below the smallest library in the clean table (27,237 reads, `B_M4-9`; 27,915 before taxonomy filtering, 2026-07-23_01). All 134 libraries were retained (group sizes in Figures 017 and 029 add up to 134).
+* **ITS2 depth, 8,600 reads:** just below the smallest ITS2 library in the clean table (8,677 reads, `F_jM2-11`). All 134 libraries were retained (127 in the standard set).
 * **16S outputs:** observed features, Shannon, Pielou's evenness and Faith's PD; Bray–Curtis, Jaccard, unweighted and weighted UniFrac distances, with PCoA results and Emperor plots.
 * **ITS2 outputs:** observed features, Shannon and Pielou's evenness; Bray–Curtis and Jaccard distances. No phylogenetic metrics, because no ITS2 tree was built.
 
@@ -51,6 +51,21 @@ qiime diversity beta-group-significance \
   --m-metadata-column Treatment_Group \
   --o-visualization 07_diversity_16S/permanova_audit/PERMANOVA_treatment_full.qzv
 ```
+
+ITS2 was tested in the same way (`07_diversity_ITS/PERMANOVA_ITS_*.qzv` for `Treatment_Group`, `07_diversity_ITS/batch_audit/ITS_batch_effect_*.qzv` for `Sequencing_Batch`). Results (Bray–Curtis, 999 permutations):
+
+| Assay | Grouping | Set | N | Groups | Pseudo-F | p |
+| :--- | :--- | :--- | ---: | ---: | ---: | ---: |
+| 16S | `Treatment_Group` | full | 134 | 5 | 12.32 | 0.001 |
+| 16S | `Treatment_Group` | standard | 127 | 4 | 14.59 | 0.001 |
+| 16S | `Sequencing_Batch` | full | 134 | 13 | 20.11 | 0.001 |
+| 16S | `Sequencing_Batch` | standard | 127 | 12 | 21.57 | 0.001 |
+| ITS2 | `Treatment_Group` | full | 134 | 5 | 11.21 | 0.001 |
+| ITS2 | `Treatment_Group` | standard | 127 | 4 | 13.03 | 0.001 |
+| ITS2 | `Sequencing_Batch` | full | 134 | 13 | 13.02 | 0.001 |
+| ITS2 | `Sequencing_Batch` | standard | 127 | 12 | 13.45 | 0.001 |
+
+All tests gave the smallest p-value possible with 999 permutations.
 
 The figures below are the distance box plots from these visualizations; *n* is the number of sample pairs. Medians are read from the plots.
 

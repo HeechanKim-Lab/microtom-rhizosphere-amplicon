@@ -91,19 +91,19 @@ Because the two controls differ (Section 1), each treatment was compared with it
 
 ## 4. Taxonomic composition
 
-Relative abundances were computed per sample from the rarefied table and averaged per group. The 10 most abundant phyla and 12 most abundant genera (by overall mean, excluding unassigned) are shown; all other taxa were summed per sample into "Other" before averaging. Percentages below were read from the figures (about ±0.2 percentage points).
+Relative abundances were computed per sample from the rarefied table and averaged per group. The 10 most abundant phyla and 12 most abundant genera (by overall mean, excluding unassigned) are shown; all other taxa were summed per sample into "Other" before averaging.
 
 ![Phylum-level relative abundance](../assets/039_16S_Phylum_Relative_Abundance.png)
 
-* The 10 phyla account for about 94% of reads in every group.
-* Most abundant: Proteobacteria (26.2–30.2%), Bacteroidota (13.4–15.4%), Actinobacteriota (9.6–12.6%), Planctomycetota (8.2–9.8%) and Verrucomicrobiota (6.2–10.0%).
-* Firmicutes were lower in treated samples (GB: 8.8% control vs 4.2% treated; GJ: 7.6% vs 5.5%). Acidobacteriota were higher (GB: 1.6% vs 3.3%; GJ: 2.2% vs 4.8%).
+* The 10 phyla account for 93.9–94.4% of reads in every group.
+* Most abundant: Proteobacteria (25.9–30.0%), Bacteroidota (13.5–15.5%), Actinobacteriota (9.6–12.6%), Planctomycetota (8.2–9.8%) and Verrucomicrobiota (6.1–10.0%).
+* Firmicutes were lower in treated samples (GB: 8.7% control vs 4.2% treated; GJ: 7.6% vs 5.4%). Acidobacteriota were higher (GB: 1.7% vs 3.3%; GJ: 2.2% vs 4.8%).
 
 ![Genus-level relative abundance](../assets/040_16S_Genus_Relative_Abundance.png)
 
-* The largest named fraction is "uncultured" (11.0–14.0%), followed by *Bacillus* (2.0–4.6%) and *Mucilaginibacter* (1.4–3.6%).
-* *Bacillus* was lower in treated samples (GB: 4.6% vs 2.0%; GJ: 3.6% vs 2.6%).
-* The 12 genera account for 33.6% (`GB_Control`) and 34.5% (`GJ_Control`) of reads, but 29.7% (`GB_Treatment`) and 31.1% (`GJ_Treatment`). Treated samples thus have a larger share of reads outside the most abundant genera, in line with their higher number of observed features.
+* The largest named fraction is "uncultured" (10.8–13.7%), followed by *Bacillus* (2.0–4.7%) and *Mucilaginibacter* (1.4–3.6%).
+* *Bacillus* was lower in treated samples (GB: 4.7% vs 2.0%; GJ: 3.6% vs 2.6%).
+* The 12 genera account for 33.4% (`GB_Control`) and 34.3% (`GJ_Control`) of reads, but 29.5% (`GB_Treatment`) and 30.9% (`GJ_Treatment`). Treated samples thus have a larger share of reads outside the most abundant genera, in line with their higher number of observed features.
 
 ---
 

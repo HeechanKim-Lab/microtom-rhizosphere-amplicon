@@ -82,6 +82,8 @@ The original log reports that the curves level off below the chosen rarefaction 
 
 All 110 16S libraries are above 27,000 reads (all 134 were retained at this depth in the six-batch run).
 
+All 110 ITS2 libraries are above 8,600 reads (smallest: 8,677), so none were removed at this depth either.
+
 ---
 
 ## 5. PICRUSt2
