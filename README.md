@@ -71,7 +71,7 @@ ITS2, ITS4:       TCCTCCGCTTATTGATATGC  (+ N spacer)
 
 ## 4. Methods
 
-Steps 1–6 were run in QIIME 2 2024.10; steps 7–10 in R 4.6.1 unless stated. Details and commands are in the logs.
+Steps 1–6 were run in QIIME 2 2024.10; steps 7–12 in R 4.6.1 unless stated. Details and commands are in the logs.
 
 ```text
     Raw FASTQ: Bacteria_<batch>/ (16S) and Fungi_<batch>/ (ITS2)
@@ -101,6 +101,8 @@ Steps 1–6 were run in QIIME 2 2024.10; steps 7–10 in R 4.6.1 unless stated. 
  8.  Differential abundance of ASVs: LinDA, each treatment vs its control
  9.  PICRUSt2 on the unrarefied table from step 4 → MetaCyc pathways → LinDA
  10. Taxonomic composition, phylum to genus
+ 11. Random forest (rarefied table): GB vs GJ treated; four groups
+ 12. RF marker ASVs checked with LinDA → PICRUSt2 pathways per ASV
 ```
 
 1. **Import** of each batch separately (Casava 1.8 format).
@@ -113,6 +115,8 @@ Steps 1–6 were run in QIIME 2 2024.10; steps 7–10 in R 4.6.1 unless stated. 
 8. **Differential abundance of ASVs** with LinDA (`MicrobiomeStat::linda`) on the unrarefied, taxonomy-filtered table from step 4, `~ Treatment_Group`, separately for `GB_Treatment` vs `GB_Control` and `GJ_Treatment` vs `GJ_Control`. Zeros were imputed (`zero.handling = "imputation"`, `adaptive = FALSE`) because treated samples had fewer reads than their controls. ASVs in fewer than 10% of samples were removed (`prev.filter = 0.10`, `mean.abund.filter = 0.0001`). Significance: FDR < 0.05 and |log2FC| ≥ 1. The model has no batch or set term.
 9. **Functional prediction** with PICRUSt2 from the unrarefied, taxonomy-filtered 16S table (27,767 ASVs): EPA-ng placement, castor maximum-parsimony prediction, NSTI cut-off 2.0 (171 ASVs excluded), MetaCyc pathways. Pathways were compared with LinDA (`~ Treatment_Group`, `prev.filter = 0.1`, `zero.handling = "pseudo-count"`). `ggpicrust2` was used only to add pathway names.
 10. **Taxonomic composition:** mean relative abundance per group from phylum to genus (rarefied table).
+11. **Random forest** (`randomForest`; 2,000 trees, `mtry` = floor(√p), 22 samples per class in each tree, `nodesize = 2`, `set.seed(42)`) on relative abundances from the rarefied table: `GB_Treatment` vs `GJ_Treatment` (ASVs in ≥ 15% of samples with mean ≥ 0.005%; 2,261 ASVs) and all four groups (≥ 10%; 2,249 ASVs). Importance: out-of-bag permutation (mean decrease in accuracy).
+12. **Pathways of marker ASVs.** ASVs from the GB vs GJ top 30 were kept as GB- or GJ-specific markers if LinDA called them enriched against their own control and not enriched in the other soil. PICRUSt2 (`pathway_pipeline.py --per_sequence_contrib`) predicted the pathways of each marker ASV; the two sets were compared pathway by pathway with Fisher's exact test (Benjamini–Hochberg correction).
 
 ---
 
@@ -138,6 +142,8 @@ Steps 1–6 were run in QIIME 2 2024.10; steps 7–10 in R 4.6.1 unless stated. 
 
 **PICRUSt2.** Seven predicted MetaCyc pathways were among the 20 most significant in both contrasts, all higher in the treated groups (for example the 3-hydroxypropanoate cycle and glyoxylate assimilation). These are predictions from 16S data, not measured functions.
 
+**Random forest and marker ASVs.** Both random forest models classified every sample correctly (out-of-bag error 0%), including the two control groups in the four-group model. Of the top 30 ASVs separating the treated groups, 11 GB-specific and 16 GJ-specific markers passed the LinDA check; all were found in every treated plant of their own soil. No predicted pathway differed between the two marker sets after FDR correction (13 at unadjusted p < 0.05, 12 of them more common among GB markers, which include all five proteobacterial markers).
+
 **ITS2** (six-batch full set only). Treated groups had more fungal ASVs than controls (Kruskal–Wallis p < 2 × 10⁻¹⁶). PERMANOVA R² was 0.258 (Bray–Curtis) and 0.187 (Jaccard). GB and GJ samples, including the two control groups, separated along PCoA 1, so this axis reflects the experiment as well as the soil.
 
 ---
@@ -160,8 +166,9 @@ Rscript pipeline/run_analysis.R
 
 * `pipeline/run_pipeline.sh` expects the raw folders `Bacteria_<batch>/` and `Fungi_<batch>/` (GB1–GB3, GJ1–GJ2) in the working directory.
 * The DADA2 read-tracking step uses `merge_16S_dada2_stats.py` and `merge_ITS_dada2_stats.py`, which are not in the repository. The step is skipped if they are missing.
-* `pipeline/run_analysis.R` sets the working directory with `setwd("/Users/heechan/Desktop/miseq_data_without_GJSet4")`; change this path before running. The script prints figures to the graphics device instead of saving them. The PICRUSt2 sections write CSV files to `figure/`, which must exist.
+* `pipeline/run_analysis.R` sets the working directory with `setwd("/Users/heechan/Desktop/miseq_data_without_GJSet4")`; change this path before running. The script prints figures to the graphics device instead of saving them. The LinDA (4-1, 4-2), PICRUSt2 and random forest sections write CSV files to `figure/`, which must exist. Sections 10-1 and 10-2 write to `rf_picrust2/`; between them, run the commented Terminal block (conda environment `picrust2`).
 * `modules/` contains the same steps as numbered scripts (module-to-log mapping in Section 8). Modules 01–05 import and process only the five final batches. Modules 06–09 reproduce the six-batch analyses (N = 127 and 134) only if GJ3 is added back to modules 01–04.
+* Modules 14–16 read the `tables/` files written by module 13. Run 14, then 15 (Terminal, conda environment `picrust2`), then 16.
 * **Module 10 deletes the raw GJ3 folders** (`rm -rf Bacteria_GJ3 Fungi_GJ3`) and earlier outputs. Keep a backup before running it.
 * Most figures in `assets/` were saved from interactive R sessions. The `ggsave()` calls in `modules/` were added later and use other image sizes; rerunning a module overwrites the corresponding figure. Modules 06–08 do not save every figure (for example 019, 020 and 028–040) and partly use other file names (module 08: `Bacteria_16S_Final_*.png`). Figures 001–014 are screenshots from QIIME 2 View; Figures 045 and 088 are screenshots of the exclusive-ASV table.
 
@@ -172,8 +179,8 @@ Rscript pipeline/run_analysis.R
 ```text
 .
 ├── README.md
-├── assets/     # figures 001–088, numbered in log order
-├── logs/       # analysis logs, 2026-07-22 to 2026-08-24
+├── assets/     # figures 001–094, numbered in log order
+├── logs/       # analysis logs, 2026-07-22 to 2026-09-28
 ├── modules/    # step-by-step scripts (see table) and make_metadata.py
 └── pipeline/   # run_pipeline.sh (QIIME 2, PICRUSt2), run_analysis.R (R, N = 110)
 ```
@@ -191,6 +198,7 @@ Rscript pipeline/run_analysis.R
 | 2026-08-10_01 | alpha and beta diversity | final | 11 | 046–066 |
 | 2026-08-18_01 | taxonomic composition | final | 12 | 067–077 |
 | 2026-08-24_01 | LinDA, PICRUSt2 pathways | final | 13 | 078–088 |
+| 2026-09-28_01 | random forest, marker ASVs, PICRUSt2 pathways per ASV | final | 14, 15, 16 | 089–094 |
 
 ---
 
@@ -198,7 +206,7 @@ Rscript pipeline/run_analysis.R
 
 * **QIIME 2** amplicon distribution 2024.10 (conda environment `qiime2-amp`, `osx-64` under Rosetta 2), with cutadapt 4.9, DADA2 1.30.0, MAFFT 7.526, FastTree 2.1.11 and UniFrac 1.4.
 * **PICRUSt2** 2.6.3 (conda environment `picrust2`), with EPA-ng 0.3.8, GAPPA 0.9.0, castor 1.8.6 and MinPath 1.6.
-* **R** 4.6.1 (`aarch64-apple-darwin23`): qiime2R 0.99.6, vegan 2.7-6, MicrobiomeStat 1.4 (LinDA), rstatix 1.0.0, ggpicrust2 2.5.17 (pathway names only), ggplot2 4.0.3, ggpubr 1.0.0, patchwork 1.3.2, pheatmap 1.0.13, ggrepel, RColorBrewer, tidyverse. phyloseq 1.56.0 and ComplexHeatmap are installed or loaded by some scripts but are not used for the reported results.
+* **R** 4.6.1 (`aarch64-apple-darwin23`): qiime2R 0.99.6, vegan 2.7-6, MicrobiomeStat 1.4 (LinDA), rstatix 1.0.0, randomForest 4.7-1.2, ggpicrust2 2.5.17 (pathway names only), ggplot2 4.0.3, ggpubr 1.0.0, patchwork 1.3.2, pheatmap 1.0.13, ggrepel, RColorBrewer, tidyverse. phyloseq 1.56.0 and ComplexHeatmap are installed or loaded by some scripts but are not used for the reported results.
 * **Python 3** (`modules/make_metadata.py`): pandas.
 
 ---

@@ -19,7 +19,8 @@ cran_packages <- c(
   "ggrepel",
   "rstatix",
   "MicrobiomeStat",
-  "ggpicrust2"
+  "ggpicrust2",
+  "randomForest"
 )
 
 installed_cran <- rownames(installed.packages())
@@ -1956,6 +1957,7 @@ p_volcano <- ggplot(volcano_df, aes(x = lfc, y = neg_log10_padj, color = Signifi
 
 # Display Plot
 print(p_volcano)
+write_csv(volcano_df, "figure/LinDA_ASV_GB_Treatment_vs_GB_Control.csv")
 
 
 
@@ -2338,6 +2340,7 @@ p_volcano <- ggplot(volcano_df, aes(x = lfc, y = neg_log10_padj, color = Signifi
 
 # Display Plot
 print(p_volcano)
+write_csv(volcano_df, "figure/LinDA_ASV_GJ_Treatment_vs_GJ_Control.csv")
 
 
 
@@ -3341,3 +3344,780 @@ p_heatmap <- pheatmap(
 # Render to screen
 grid::grid.newpage()
 grid::grid.draw(p_heatmap$gtable)
+
+
+
+
+
+
+
+
+
+
+############################### 9-1_16S_RandomForest_Treatment ###############################
+# Ensure randomForest is installed
+if (!requireNamespace("randomForest", quietly = TRUE)) {
+  install.packages("randomForest")
+}
+
+library(qiime2R)
+library(tidyverse)
+library(randomForest)
+library(pheatmap)
+library(RColorBrewer)
+
+# Global font & aesthetic configuration
+font_family <- "Times New Roman"
+palette_rf <- c(
+  "GB_Treatment" = "#1A365D",
+  "GJ_Treatment" = "#881337"
+)
+
+# ==============================================================================
+# 1. Load Metadata & Rarefied Count Table (Isolate Model 1: GB vs. GJ Treatments)
+# ==============================================================================
+# Filter strictly to the 55 inoculated plant samples
+meta_rf <- read_tsv("metadata_P_generation.tsv", show_col_types = FALSE) %>%
+  filter(`sample-id` != "#q2:types") %>%
+  filter(
+    Domain == "Bacteria",
+    Treatment_Group %in% c("GB_Treatment", "GJ_Treatment")
+  ) %>%
+  mutate(Treatment_Group = factor(Treatment_Group, levels = c("GB_Treatment", "GJ_Treatment"))) %>%
+  column_to_rownames("sample-id")
+
+# Import ASV table and taxonomy
+counts_raw <- read_qza("07_diversity_16S/core_metrics/rarefied_table.qza")$data
+tax_raw    <- read_qza("05_taxonomy_16S/taxonomy_16S.qza")$data
+
+tax_clean <- parse_taxonomy(tax_raw) %>%
+  rownames_to_column("Feature.ID")
+
+# Calculate global relative abundance (%)
+rel_abund_mat <- sweep(counts_raw, 2, colSums(counts_raw), FUN = "/") * 100
+
+# Subset abundance matrix to the 55 target samples
+common_samples <- intersect(rownames(meta_rf), colnames(rel_abund_mat))
+meta_rf <- meta_rf[common_samples, , drop = FALSE]
+rel_rf  <- rel_abund_mat[, common_samples]
+
+# ==============================================================================
+# 2. Unsupervised Pre-Filtering (Noise Reduction)
+# ==============================================================================
+# Retain ASVs present in >= 15% of samples (>= 9 samples) AND mean relative abundance >= 0.005%
+# This is unsupervised (label-agnostic) and preserves FDR / model integrity
+prev_threshold <- 0.15 * ncol(rel_rf)
+keep_features <- rownames(rel_rf)[
+  rowSums(rel_rf > 0) >= prev_threshold & rowMeans(rel_rf) >= 0.005
+]
+
+cat(sprintf("\nFiltering Complete: Retained %d ASVs out of %d for Random Forest classification.\n", 
+            length(keep_features), nrow(rel_rf)))
+
+# Transpose for modeling (Rows = Samples, Columns = ASVs)
+rf_input <- as.data.frame(t(rel_rf[keep_features, ]))
+# Explicitly separate X (features) and Y (target) to avoid R formula syntax breaking on ASV hash names
+x_data <- rf_input
+y_data <- meta_rf$Treatment_Group
+
+# ==============================================================================
+# 3. Model Training (Direct Parameterization)
+# ==============================================================================
+set.seed(42)
+
+# Set mtry to standard theoretical optimum: floor(sqrt(p))
+best_mtry <- floor(sqrt(ncol(x_data))) # 47 for 2,261 ASVs
+
+cat(sprintf("Proceeding with mtry = %d across 2,000 trees.\n", best_mtry))
+
+# Train the production Random Forest model
+rf_model <- randomForest(
+  x = x_data,
+  y = y_data,
+  ntree = 2000,               # Ensures Mean Decrease Accuracy (MDA) scores stabilize
+  mtry = best_mtry,           # Evaluates 47 features per split
+  importance = TRUE,          # Enables MDA calculation via OOB permutation
+  proximity = TRUE,
+  sampsize = c(22, 22),       # Stratified 1:1 sampling per bootstrap to balance classes
+  nodesize = 2                # Structural regularization against singleton noise
+)
+
+cat("\n=== Random Forest OOB Classification Report ===\n")
+print(rf_model)
+
+# ==============================================================================
+# 4. Extract Permutation Importance (MDA) & Assign Taxonomy
+# ==============================================================================
+imp_df <- as.data.frame(importance(rf_model)) %>%
+  rownames_to_column("Feature.ID") %>%
+  rename(
+    MeanDecreaseAccuracy = MeanDecreaseAccuracy,
+    MeanDecreaseGini     = MeanDecreaseGini
+  ) %>%
+  left_join(tax_clean, by = "Feature.ID") %>%
+  mutate(
+    Clean_Name = case_when(
+      !is.na(Genus) & Genus != "g__" & Genus != "" ~ Genus,
+      !is.na(Family) & Family != "f__" & Family != "" ~ paste("Fam.", Family),
+      !is.na(Order) & Order != "o__" & Order != "" ~ paste("Ord.", Order),
+      TRUE ~ paste("Phy.", Phylum)
+    ),
+    Short_ID = substr(Feature.ID, 1, 5),
+    DisplayName = paste0(Clean_Name, " (", Short_ID, ")")
+  ) %>%
+  arrange(desc(MeanDecreaseAccuracy))
+
+# Extract Top 30 Predictive Biomarkers
+top30_rf <- imp_df %>%
+  slice_head(n = 30)
+
+# Determine enrichment direction (GB_Treatment vs. GJ_Treatment)
+group_means <- rf_input %>%
+  mutate(Target_Class = y_data) %>%
+  group_by(Target_Class) %>%
+  summarise(across(all_of(top30_rf$Feature.ID), mean)) %>%
+  pivot_longer(-Target_Class, names_to = "Feature.ID", values_to = "Mean_Abund")
+
+enrich_dir <- group_means %>%
+  group_by(Feature.ID) %>%
+  slice_max(Mean_Abund, n = 1) %>%
+  select(Feature.ID, Enriched_In = Target_Class)
+
+# Merge enrichment direction and order factor levels for plotting
+top30_rf <- top30_rf %>%
+  left_join(enrich_dir, by = "Feature.ID") %>%
+  mutate(DisplayName = factor(DisplayName, levels = rev(DisplayName)))
+
+# Export Diagnostic Biomarkers
+dir.create("figure", showWarnings = FALSE)
+write_csv(top30_rf, "figure/RF_16S_Top30_Diagnostic_Biomarkers.csv")
+cat("\nTop 30 diagnostic biomarkers exported to 'figure/RF_16S_Top30_Diagnostic_Biomarkers.csv'.\n")
+
+# ==============================================================================
+# 5. Visualization: Variable Importance Lollipop Chart
+# ==============================================================================
+p_importance <- ggplot(top30_rf, aes(x = MeanDecreaseAccuracy, y = DisplayName)) +
+  geom_segment(
+    aes(x = 0, xend = MeanDecreaseAccuracy, y = DisplayName, yend = DisplayName), 
+    color = "gray60", 
+    linewidth = 0.6
+  ) +
+  geom_point(
+    aes(size = MeanDecreaseGini, fill = Enriched_In), 
+    shape = 21, 
+    stroke = 0.5, 
+    color = "black"
+  ) +
+  scale_fill_manual(values = palette_rf, name = "Enriched Group") +
+  scale_size_continuous(range = c(2.5, 6.0), name = "Mean Decrease Gini") +
+  theme_bw(base_size = 12, base_family = font_family) +
+  theme(
+    text = element_text(family = font_family),
+    axis.text.y = element_text(face = "italic", size = 9.5, color = "black"),
+    axis.text.x = element_text(size = 10, color = "black"),
+    axis.title = element_text(face = "bold", size = 11),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 13),
+    legend.position = "right",
+    legend.title = element_text(face = "bold", size = 10),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank()
+  ) +
+  labs(
+    title = "6. Top 30 Diagnostic Biomarkers (GB vs. GJ Rhizosphere)",
+    x = "Variable Importance: Mean Decrease Accuracy (OOB Permutation)",
+    y = "Taxonomic Assignment (ASV ID)"
+  )
+
+print(p_importance)
+
+# ==============================================================================
+# 6. Sample-Level Abundance Profiling (Z-Score Heatmap)
+# ==============================================================================
+top20_ids <- top30_rf$Feature.ID[1:20]
+rf_heatmap_mat <- rel_rf[top20_ids, ]
+rownames(rf_heatmap_mat) <- top30_rf$DisplayName[match(rownames(rf_heatmap_mat), top30_rf$Feature.ID)]
+
+# Order columns by treatment group
+col_annot <- meta_rf %>%
+  select(Treatment_Group) %>%
+  arrange(Treatment_Group)
+
+rf_heatmap_mat <- rf_heatmap_mat[, rownames(col_annot)]
+
+heatmap_colors <- colorRampPalette(c("#1F618D", "#FFFFFF", "#B03A2E"))(100)
+
+p_rf_heat <- pheatmap(
+  mat = rf_heatmap_mat,
+  scale = "row",
+  cluster_rows = TRUE,
+  cluster_cols = FALSE,
+  annotation_col = col_annot,
+  annotation_colors = list(Treatment_Group = palette_rf),
+  color = heatmap_colors,
+  show_colnames = FALSE,
+  fontsize_row = 10,
+  fontfamily = font_family,
+  border_color = NA,
+  main = "6. Relative Abundance of Top Diagnostic RF Biomarkers (Z-Score)"
+)
+
+grid::grid.draw(p_rf_heat$gtable)
+
+
+
+
+
+
+
+
+
+
+############################### 9-3_16S_RandomForest_4Groups ###############################
+library(qiime2R)
+library(tidyverse)
+library(randomForest)
+library(pheatmap)
+library(RColorBrewer)
+
+# Global font & aesthetic configuration matching previous logs
+font_family <- "Times New Roman"
+palette_4 <- c(
+  "GB_Control"   = "#4A90E2",
+  "GB_Treatment" = "#1A365D",
+  "GJ_Control"   = "#F87171",
+  "GJ_Treatment" = "#881337"
+)
+
+# ==============================================================================
+# 1. Load Metadata & Rarefied Count Table (Complete N = 110 Cohort)
+# ==============================================================================
+meta_4g <- read_tsv("metadata_P_generation.tsv", show_col_types = FALSE) %>%
+  filter(`sample-id` != "#q2:types") %>%
+  filter(
+    Domain == "Bacteria",
+    Treatment_Group %in% c("GB_Control", "GB_Treatment", "GJ_Control", "GJ_Treatment")
+  ) %>%
+  mutate(
+    Treatment_Group = factor(
+      Treatment_Group,
+      levels = c("GB_Control", "GB_Treatment", "GJ_Control", "GJ_Treatment")
+    )
+  ) %>%
+  column_to_rownames("sample-id")
+
+# Import ASV table and taxonomy
+counts_raw <- read_qza("07_diversity_16S/core_metrics/rarefied_table.qza")$data
+tax_raw    <- read_qza("05_taxonomy_16S/taxonomy_16S.qza")$data
+
+tax_clean <- parse_taxonomy(tax_raw) %>%
+  rownames_to_column("Feature.ID")
+
+# Calculate relative abundance (%)
+rel_abund_mat <- sweep(counts_raw, 2, colSums(counts_raw), FUN = "/") * 100
+
+# Align samples to locked N = 110 cohort
+common_samples <- intersect(rownames(meta_4g), colnames(rel_abund_mat))
+meta_4g <- meta_4g[common_samples, , drop = FALSE]
+rel_4g  <- rel_abund_mat[, common_samples]
+
+# ==============================================================================
+# 2. Unsupervised Pre-Filtering (N = 110)
+# ==============================================================================
+# Retain ASVs present in >= 10% of samples (>= 11 samples) with mean relative abundance >= 0.005%
+prev_threshold <- 0.10 * ncol(rel_4g)
+keep_features <- rownames(rel_4g)[
+  rowSums(rel_4g > 0) >= prev_threshold & rowMeans(rel_4g) >= 0.005
+]
+
+cat(sprintf("\nFiltering Complete: Retained %d ASVs out of %d across 110 samples.\n", 
+            length(keep_features), nrow(rel_4g)))
+
+x_data <- as.data.frame(t(rel_4g[keep_features, ]))
+y_data <- meta_4g$Treatment_Group
+
+# ==============================================================================
+# 3. Multiclass Random Forest Training
+# ==============================================================================
+set.seed(42)
+
+# Theoretical classification mtry: floor(sqrt(p))
+best_mtry <- floor(sqrt(ncol(x_data)))
+
+cat(sprintf("Training Multiclass Random Forest (mtry = %d, ntree = 2000, 4 balanced classes).\n", best_mtry))
+
+rf_4g_model <- randomForest(
+  x = x_data,
+  y = y_data,
+  ntree = 2000,
+  mtry = best_mtry,
+  importance = TRUE,
+  proximity = TRUE,
+  sampsize = c(22, 22, 22, 22), # Balances 33:33:22:22 representation across trees
+  nodesize = 2
+)
+
+cat("\n=== Multiclass Random Forest Confusion Matrix & OOB Report ===\n")
+print(rf_4g_model)
+
+# ==============================================================================
+# 4. Extract Multiclass Permutation Importance & Assign Taxonomy
+# ==============================================================================
+imp_matrix <- importance(rf_4g_model)
+
+# Extract global MeanDecreaseAccuracy alongside per-class accuracy drops
+imp_df <- as.data.frame(imp_matrix) %>%
+  rownames_to_column("Feature.ID") %>%
+  left_join(tax_clean, by = "Feature.ID") %>%
+  mutate(
+    Clean_Name = case_when(
+      !is.na(Genus) & Genus != "g__" & Genus != "" ~ Genus,
+      !is.na(Family) & Family != "f__" & Family != "" ~ paste("Fam.", Family),
+      !is.na(Order) & Order != "o__" & Order != "" ~ paste("Ord.", Order),
+      TRUE ~ paste("Phy.", Phylum)
+    ),
+    Short_ID = substr(Feature.ID, 1, 5),
+    DisplayName = paste0(Clean_Name, " (", Short_ID, ")")
+  ) %>%
+  arrange(desc(MeanDecreaseAccuracy))
+
+# Extract Top 30 Predictive Multiclass Biomarkers
+top30_rf_4g <- imp_df %>%
+  slice_head(n = 30)
+
+# Determine Group of Maximum Mean Abundance (Enrichment Core)
+group_means <- x_data %>%
+  mutate(Target_Class = y_data) %>%
+  group_by(Target_Class) %>%
+  summarise(across(all_of(top30_rf_4g$Feature.ID), mean)) %>%
+  pivot_longer(-Target_Class, names_to = "Feature.ID", values_to = "Mean_Abund")
+
+enrich_dir <- group_means %>%
+  group_by(Feature.ID) %>%
+  slice_max(Mean_Abund, n = 1) %>%
+  select(Feature.ID, Enriched_In = Target_Class)
+
+top30_rf_4g <- top30_rf_4g %>%
+  left_join(enrich_dir, by = "Feature.ID") %>%
+  mutate(DisplayName = factor(DisplayName, levels = rev(DisplayName)))
+
+dir.create("figure", showWarnings = FALSE)
+write_csv(top30_rf_4g, "figure/RF_16S_4Group_Top30_Biomarkers.csv")
+cat("\nMulticlass biomarkers exported to 'figure/RF_16S_4Group_Top30_Biomarkers.csv'.\n")
+
+# ==============================================================================
+# 5. Visualization: Multiclass Variable Importance Lollipop Chart
+# ==============================================================================
+p_importance_4g <- ggplot(top30_rf_4g, aes(x = MeanDecreaseAccuracy, y = DisplayName)) +
+  geom_segment(
+    aes(x = 0, xend = MeanDecreaseAccuracy, y = DisplayName, yend = DisplayName), 
+    color = "gray60", 
+    linewidth = 0.6
+  ) +
+  geom_point(
+    aes(size = MeanDecreaseGini, fill = Enriched_In), 
+    shape = 21, 
+    stroke = 0.5, 
+    color = "black"
+  ) +
+  scale_fill_manual(values = palette_4, name = "Primary Enriched Group") +
+  scale_size_continuous(range = c(2.5, 6.0), name = "Mean Decrease Gini") +
+  theme_bw(base_size = 12, base_family = font_family) +
+  theme(
+    text = element_text(family = font_family),
+    axis.text.y = element_text(face = "italic", size = 9.5, color = "black"),
+    axis.text.x = element_text(size = 10, color = "black"),
+    axis.title = element_text(face = "bold", size = 11),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 13),
+    legend.position = "right",
+    legend.title = element_text(face = "bold", size = 10),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank()
+  ) +
+  labs(
+    title = "7. Top 30 Multiclass Biomarkers (4-Group Model)",
+    x = "Variable Importance: Mean Decrease Accuracy (OOB Permutation)",
+    y = "Taxonomic Assignment (ASV ID)"
+  )
+
+print(p_importance_4g)
+
+# ==============================================================================
+# 6. Sample-Level Abundance Profiling (N = 110 Heatmap)
+# ==============================================================================
+top20_ids <- top30_rf_4g$Feature.ID[1:20]
+rf_heat_mat <- rel_4g[top20_ids, ]
+rownames(rf_heat_mat) <- top30_rf_4g$DisplayName[match(rownames(rf_heat_mat), top30_rf_4g$Feature.ID)]
+
+# Order columns sequentially across all 4 groups
+col_annot <- meta_4g %>%
+  select(Treatment_Group) %>%
+  arrange(Treatment_Group)
+
+rf_heat_mat <- rf_heat_mat[, rownames(col_annot)]
+
+# Group boundary gaps for pheatmap visual clarity
+group_counts <- table(col_annot$Treatment_Group)
+gaps_col <- cumsum(group_counts)[1:(length(group_counts) - 1)]
+
+heatmap_colors <- colorRampPalette(c("#1F618D", "#FFFFFF", "#B03A2E"))(100)
+
+p_rf_4g_heat <- pheatmap(
+  mat = rf_heat_mat,
+  scale = "row",
+  cluster_rows = TRUE,
+  cluster_cols = FALSE,
+  annotation_col = col_annot,
+  annotation_colors = list(Treatment_Group = palette_4),
+  gaps_col = gaps_col,
+  color = heatmap_colors,
+  show_colnames = FALSE,
+  fontsize_row = 9.5,
+  fontfamily = font_family,
+  border_color = NA,
+  main = "7. Relative Abundance of Top 20 Multiclass RF Biomarkers (N = 110, Z-Score)"
+)
+
+grid::grid.draw(p_rf_4g_heat$gtable)
+
+
+
+
+
+
+
+
+
+
+############################### 10-1_16S_RF_Marker_Selection ###############################
+# Input:  figure/RF_16S_Top30_Diagnostic_Biomarkers.csv                         (section 9-1)
+#         figure/LinDA_ASV_GB_Treatment_vs_GB_Control.csv                        (section 4-1)
+#         figure/LinDA_ASV_GJ_Treatment_vs_GJ_Control.csv                        (section 4-2)
+#         picrust2_out_16S/EC_metagenome_out/seqtab_norm.tsv.gz
+#         picrust2_out_16S/combined_EC_predicted.tsv.gz
+# Output: rf_picrust2/rf_markers.tsv
+#         rf_picrust2/seqtab_norm_markers.tsv.gz, rf_picrust2/EC_predicted_markers.tsv.gz (for the Terminal step below)
+library(tidyverse)
+
+out_dir <- "rf_picrust2"
+dir.create(out_dir, showWarnings = FALSE)
+
+# ==============================================================================
+# 1. RF top 30 (section 9-1), checked against LinDA (treatment vs its own control)
+# ==============================================================================
+rf_top30 <- read_csv("figure/RF_16S_Top30_Diagnostic_Biomarkers.csv", show_col_types = FALSE)
+
+read_linda_calls <- function(file, soil) {
+  read_csv(file, show_col_types = FALSE) %>%
+    transmute(
+      Feature.ID,
+      Soil = soil,
+      Call = case_when(
+        Significance %in% c("Enriched in B", "Enriched in J")       ~ "up",
+        Significance %in% c("Enriched in M(B)", "Enriched in M(J)") ~ "down",
+        TRUE                                                        ~ "ns"
+      )
+    )
+}
+
+linda_calls <- bind_rows(
+  read_linda_calls("figure/LinDA_ASV_GB_Treatment_vs_GB_Control.csv", "LinDA_GB"),
+  read_linda_calls("figure/LinDA_ASV_GJ_Treatment_vs_GJ_Control.csv", "LinDA_GJ")
+) %>%
+  pivot_wider(names_from = Soil, values_from = Call)
+
+# GB-specific: RF marker of GB_Treatment, enriched vs GB_Control, and not enriched in GJ
+# GJ-specific: RF marker of GJ_Treatment, enriched vs GJ_Control, and not enriched in GB
+# "not tested" = removed by LinDA's 10% prevalence filter (absent or rare in that soil)
+markers <- rf_top30 %>%
+  select(Feature.ID, DisplayName, Enriched_In, MeanDecreaseAccuracy, Phylum, Family, Genus) %>%
+  left_join(linda_calls, by = "Feature.ID") %>%
+  mutate(
+    across(c(LinDA_GB, LinDA_GJ), ~ replace_na(.x, "not tested")),
+    Marker_Set = case_when(
+      Enriched_In == "GB_Treatment" & LinDA_GB == "up" & LinDA_GJ != "up" ~ "GB-specific",
+      Enriched_In == "GJ_Treatment" & LinDA_GJ == "up" & LinDA_GB != "up" ~ "GJ-specific",
+      TRUE                                                                ~ "excluded"
+    )
+  ) %>%
+  arrange(Marker_Set, desc(MeanDecreaseAccuracy))
+
+print(count(markers, Enriched_In, Marker_Set))
+print(markers %>% filter(Marker_Set == "excluded") %>% select(DisplayName, Enriched_In, LinDA_GB, LinDA_GJ))
+
+write_tsv(markers, file.path(out_dir, "rf_markers.tsv"))
+
+# ==============================================================================
+# 2. Marker-only copies of the two per-ASV PICRUSt2 tables (rows copied unchanged)
+# ==============================================================================
+marker_ids <- markers %>% filter(Marker_Set != "excluded") %>% pull(Feature.ID)
+
+subset_rows <- function(infile, outfile, ids) {
+  lines <- readLines(gzfile(infile))
+  row_ids <- sub("\t.*$", "", lines[-1])
+  keep <- c(lines[1], lines[-1][row_ids %in% ids])
+  con <- gzfile(outfile, "w")
+  writeLines(keep, con)
+  close(con)
+  missing <- setdiff(ids, row_ids)
+  if (length(missing) > 0) warning(infile, " has no row for: ", paste(missing, collapse = ", "))
+  cat(sprintf("%s: %d of %d marker ASVs\n", outfile, length(keep) - 1, length(ids)))
+}
+
+subset_rows("picrust2_out_16S/EC_metagenome_out/seqtab_norm.tsv.gz",
+            file.path(out_dir, "seqtab_norm_markers.tsv.gz"), marker_ids)
+subset_rows("picrust2_out_16S/combined_EC_predicted.tsv.gz",
+            file.path(out_dir, "EC_predicted_markers.tsv.gz"), marker_ids)
+
+
+
+
+
+
+
+
+
+
+############################### PICRUSt2 Pathways of RF Marker ASVs (Terminal) ###############################
+# Run in Terminal (not in R) after 10-1 and before 10-2, from the same working directory.
+# --per_sequence_contrib runs MinPath on each marker ASV's predicted genome separately.
+#
+#   conda activate picrust2
+#
+#   pathway_pipeline.py \
+#     -i picrust2_out_16S/EC_metagenome_out/pred_metagenome_unstrat.tsv.gz \
+#     -o rf_picrust2/pathways_markers \
+#     --per_sequence_contrib \
+#     --per_sequence_abun rf_picrust2/seqtab_norm_markers.tsv.gz \
+#     --per_sequence_function rf_picrust2/EC_predicted_markers.tsv.gz \
+#     --coverage \
+#     -p 4
+#
+#   add_descriptions.py \
+#     -i rf_picrust2/pathways_markers/path_abun_unstrat_per_seq.tsv.gz \
+#     -m METACYC \
+#     -o rf_picrust2/pathways_markers/path_abun_unstrat_per_seq_descrip.tsv.gz
+#
+# The same commands are in modules/15_marker_pathways_picrust2.sh.
+
+
+
+
+
+
+
+
+
+
+############################### 10-2_16S_RF_Marker_Pathways ###############################
+# Input:  rf_picrust2/rf_markers.tsv                                             (section 10-1)
+#         rf_picrust2/pathways_markers/path_abun_predictions.tsv.gz               (Terminal step)
+#         rf_picrust2/pathways_markers/path_abun_unstrat_per_seq_descrip.tsv.gz   (Terminal step)
+#         figure/PICRUSt2_LinDA_GB_Control_vs_GB_Treatment.csv                    (pathway LinDA, GB)
+#         figure/PICRUSt2_LinDA_GJ_Control_vs_GJ_Treatment.csv                    (pathway LinDA, GJ)
+# Output: rf_picrust2/pathway_comparison_GB_vs_GJ.tsv, marker_pathway_presence.tsv, marker_pathway_counts.tsv
+#         rf_picrust2/RF_markers_pathway_share.png, rf_picrust2/RF_markers_pathway_heatmap.png
+library(tidyverse)
+library(pheatmap)
+library(ggrepel)
+library(RColorBrewer)
+
+font_family <- "Times New Roman"
+out_dir <- "rf_picrust2"
+pwy_dir <- file.path(out_dir, "pathways_markers")
+
+palette_set <- c("GB-specific" = "#1A365D", "GJ-specific" = "#881337")
+
+# ==============================================================================
+# 1. Load marker list, per-ASV pathway predictions and pathway descriptions
+# ==============================================================================
+markers <- read_tsv(file.path(out_dir, "rf_markers.tsv"), show_col_types = FALSE) %>%
+  filter(Marker_Set != "excluded")
+n_set <- count(markers, Marker_Set) %>% deframe()
+
+# Predicted abundance of each pathway in each marker ASV's genome (MinPath run per genome).
+# A value > 0 means the pathway is predicted to be present in that ASV.
+pwy_by_asv <- read_tsv(file.path(pwy_dir, "path_abun_predictions.tsv.gz"), show_col_types = FALSE) %>%
+  pivot_longer(-sequence, names_to = "pathway", values_to = "genome_abun") %>%
+  rename(Feature.ID = sequence) %>%
+  inner_join(markers %>% select(Feature.ID, DisplayName, Marker_Set, Phylum), by = "Feature.ID") %>%
+  mutate(Present = genome_abun > 0)
+
+# MetaCyc descriptions added by add_descriptions.py in the Terminal step (HTML entities such as &beta; -> beta)
+pwy_desc <- read_tsv(file.path(pwy_dir, "path_abun_unstrat_per_seq_descrip.tsv.gz"), show_col_types = FALSE) %>%
+  transmute(pathway, description = str_replace_all(description, "&([A-Za-z]+);", "\\1"))
+
+# Community-level result for each pathway (pathway LinDA, treated vs its own control)
+pwy_linda <- bind_rows(
+  read_csv("figure/PICRUSt2_LinDA_GB_Control_vs_GB_Treatment.csv", show_col_types = FALSE) %>% mutate(Soil = "GB"),
+  read_csv("figure/PICRUSt2_LinDA_GJ_Control_vs_GJ_Treatment.csv", show_col_types = FALSE) %>% mutate(Soil = "GJ")
+) %>%
+  transmute(
+    pathway = feature,
+    Soil,
+    Community = case_when(
+      padj < 0.05 & log2FC > 0 ~ "higher in treated",
+      padj < 0.05 & log2FC < 0 ~ "lower in treated",
+      TRUE                     ~ "no change"
+    )
+  ) %>%
+  pivot_wider(names_from = Soil, values_from = Community, names_prefix = "Community_")
+
+# ==============================================================================
+# 2. Compare GB-specific vs GJ-specific markers, pathway by pathway
+# ==============================================================================
+asv_summary <- pwy_by_asv %>%
+  group_by(Marker_Set, DisplayName, Phylum) %>%
+  summarise(n_pathways = sum(Present), .groups = "drop")
+
+cat("\nPredicted pathways per marker ASV:\n")
+print(asv_summary %>% group_by(Marker_Set) %>%
+        summarise(n_ASVs = n(), median = median(n_pathways), min = min(n_pathways), max = max(n_pathways)))
+
+comparison <- pwy_by_asv %>%
+  group_by(pathway) %>%
+  summarise(
+    n_GB = sum(Present & Marker_Set == "GB-specific"),
+    n_GJ = sum(Present & Marker_Set == "GJ-specific"),
+    .groups = "drop"
+  ) %>%
+  filter(n_GB + n_GJ > 0) %>%
+  mutate(
+    pct_GB = 100 * n_GB / n_set[["GB-specific"]],
+    pct_GJ = 100 * n_GJ / n_set[["GJ-specific"]],
+    p_fisher = map2_dbl(n_GB, n_GJ, ~ fisher.test(matrix(
+      c(.x, n_set[["GB-specific"]] - .x, .y, n_set[["GJ-specific"]] - .y), nrow = 2))$p.value),
+    fdr = p.adjust(p_fisher, method = "BH"),
+    Higher_In = case_when(
+      p_fisher < 0.05 & pct_GB > pct_GJ ~ "GB-specific",
+      p_fisher < 0.05 & pct_GJ > pct_GB ~ "GJ-specific",
+      TRUE                              ~ "neither"
+    )
+  ) %>%
+  left_join(pwy_desc, by = "pathway") %>%
+  left_join(pwy_linda, by = "pathway") %>%
+  mutate(
+    across(c(Community_GB, Community_GJ), ~ replace_na(.x, "not tested")),
+    label = paste0(str_trunc(coalesce(description, pathway), 50), " [", pathway, "]")
+  ) %>%
+  arrange(p_fisher, desc(abs(pct_GB - pct_GJ)))
+
+n_p05 <- sum(comparison$p_fisher < 0.05)
+n_fdr <- sum(comparison$fdr < 0.05)
+cat(sprintf("\n%d pathways are predicted in at least one marker ASV. %d differ between the sets at p < 0.05 (Fisher, unadjusted); %d at FDR < 0.05.\n",
+            nrow(comparison), n_p05, n_fdr))
+print(comparison %>% filter(p_fisher < 0.05) %>%
+        select(pathway, description, n_GB, n_GJ, p_fisher, fdr, Community_GB, Community_GJ), width = Inf)
+
+write_tsv(comparison %>% select(-label), file.path(out_dir, "pathway_comparison_GB_vs_GJ.tsv"))
+
+presence_wide <- pwy_by_asv %>%
+  transmute(pathway, DisplayName, Present = as.integer(Present)) %>%
+  pivot_wider(names_from = DisplayName, values_from = Present) %>%
+  left_join(pwy_desc, by = "pathway") %>%
+  relocate(description, .after = pathway)
+write_tsv(presence_wide, file.path(out_dir, "marker_pathway_presence.tsv"))
+write_tsv(asv_summary, file.path(out_dir, "marker_pathway_counts.tsv"))
+
+# ==============================================================================
+# 3. Figure 1: share of GB- vs GJ-specific markers carrying each pathway
+# ==============================================================================
+bubble_df <- comparison %>% count(pct_GB, pct_GJ, name = "n_pathways")
+sig_df <- comparison %>% filter(p_fisher < 0.05)
+
+p_share <- ggplot() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray50", linewidth = 0.5) +
+  geom_point(data = bubble_df, aes(x = pct_GJ, y = pct_GB, size = n_pathways),
+             shape = 21, fill = "gray80", color = "gray45", stroke = 0.3, alpha = 0.7) +
+  geom_point(data = sig_df, aes(x = pct_GJ, y = pct_GB, fill = Higher_In),
+             shape = 21, size = 3, color = "black", stroke = 0.4) +
+  geom_text_repel(data = sig_df, aes(x = pct_GJ, y = pct_GB, label = str_trunc(coalesce(description, pathway), 40)),
+                  size = 3, family = font_family, max.overlaps = 30, box.padding = 0.4,
+                  segment.size = 0.3, segment.color = "gray40", seed = 42) +
+  scale_fill_manual(values = palette_set, name = "p < 0.05, higher in") +
+  scale_size_continuous(range = c(1.5, 8), name = "Pathways") +
+  scale_x_continuous(limits = c(-2, 102), breaks = seq(0, 100, 25)) +
+  scale_y_continuous(limits = c(-2, 102), breaks = seq(0, 100, 25)) +
+  coord_equal() +
+  theme_bw(base_size = 12, base_family = font_family) +
+  theme(
+    text = element_text(family = font_family),
+    axis.text = element_text(color = "black", size = 10),
+    axis.title = element_text(face = "bold", size = 11),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 13),
+    plot.subtitle = element_text(hjust = 0.5, size = 9.5),
+    panel.grid.minor = element_blank(),
+    legend.title = element_text(face = "bold", size = 9.5)
+  ) +
+  labs(
+    title = "Predicted MetaCyc Pathways of the RF Marker ASVs",
+    subtitle = sprintf("%d pathways; %d differ at p < 0.05 (Fisher, unadjusted), %d at FDR < 0.05",
+                       nrow(comparison), n_p05, n_fdr),
+    x = sprintf("GJ-specific markers carrying the pathway (%%, n = %d)", n_set[["GJ-specific"]]),
+    y = sprintf("GB-specific markers carrying the pathway (%%, n = %d)", n_set[["GB-specific"]])
+  )
+
+print(p_share)
+ggsave(file.path(out_dir, "RF_markers_pathway_share.png"), p_share,
+       width = 1400 / 192, height = 1400 / 192, dpi = 192)
+
+# ==============================================================================
+# 4. Figure 2: presence of the differing pathways in each marker ASV
+# ==============================================================================
+if (n_p05 >= 2) {
+  col_info <- markers %>% arrange(Marker_Set, Phylum, desc(MeanDecreaseAccuracy))
+
+  mat <- pwy_by_asv %>%
+    filter(pathway %in% sig_df$pathway) %>%
+    transmute(pathway, Feature.ID, Present = as.integer(Present)) %>%
+    pivot_wider(names_from = Feature.ID, values_from = Present) %>%
+    column_to_rownames("pathway") %>%
+    as.matrix()
+  mat <- mat[, col_info$Feature.ID, drop = FALSE]
+  colnames(mat) <- col_info$DisplayName
+  rownames(mat) <- sig_df$label[match(rownames(mat), sig_df$pathway)]
+
+  annotation_col <- data.frame(Marker = col_info$Marker_Set, Phylum = col_info$Phylum,
+                               row.names = col_info$DisplayName)
+  annotation_row <- sig_df %>%
+    transmute(label, `Community GB` = Community_GB, `Community GJ` = Community_GJ) %>%
+    column_to_rownames("label")
+
+  phyla <- sort(unique(col_info$Phylum))
+  community_colors <- c("higher in treated" = "#B03A2E", "lower in treated" = "#1F618D",
+                        "no change" = "gray85", "not tested" = "white")
+  annotation_colors <- list(
+    Marker = palette_set,
+    Phylum = setNames(colorRampPalette(brewer.pal(12, "Set3"))(length(phyla)), phyla),
+    `Community GB` = community_colors,
+    `Community GJ` = community_colors
+  )
+
+  p_heat <- pheatmap(
+    mat,
+    color             = c("gray95", "gray20"),
+    breaks            = c(-0.5, 0.5, 1.5),
+    legend_breaks     = c(0, 1),
+    legend_labels     = c("absent", "present"),
+    cluster_rows      = nrow(mat) > 2,
+    cluster_cols      = FALSE,
+    gaps_col          = n_set[["GB-specific"]],
+    annotation_col    = annotation_col,
+    annotation_row    = annotation_row,
+    annotation_colors = annotation_colors,
+    border_color      = "white",
+    fontsize          = 9,
+    fontsize_row      = 8.5,
+    fontsize_col      = 8.5,
+    angle_col         = "90",
+    fontfamily        = font_family,
+    main              = "Pathways that differ between GB- and GJ-specific marker ASVs (p < 0.05, unadjusted)",
+    silent            = TRUE
+  )
+
+  grid::grid.newpage()
+  grid::grid.draw(p_heat$gtable)
+  png(file.path(out_dir, "RF_markers_pathway_heatmap.png"), width = 2800, height = 1400, res = 192)
+  grid::grid.newpage()
+  grid::grid.draw(p_heat$gtable)
+  dev.off()
+}
